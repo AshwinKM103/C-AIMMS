@@ -438,6 +438,27 @@ configuration surface looks live; the implementation is not there.
    it correctly documents the user-scope stack.)
 6. `gh extension install yahsan2/gh-sub-issue` — installed. Only load-bearing if `ccpm` is later
    adopted (currently "evaluate later," not installed).
+7. **Project-scoped `.mcp.json` servers require one-time interactive approval** — this is documented,
+   intentional behavior (`claude mcp list` shows `⏸ Pending approval (run claude to approve)` for
+   all 8 until someone runs `claude` interactively in this project and accepts). This is *why* they
+   don't appear in the VS Code extension's `/mcp` panel — pending servers aren't shown there at all,
+   only connected/failed/needs-auth ones. Approve by running `claude` (CLI or a fresh VS Code
+   session) in this project once. To pre-approve for the whole team without the per-person prompt,
+   set `enableAllProjectMcpServers: true` in `.claude/settings.json` — not done here, since that
+   trades away the human-review step the approval gate exists for; left as your call.
+8. `github` MCP server warns `Missing environment variables: GITHUB_PERSONAL_ACCESS_TOKEN` — expected,
+   the `.mcp.json` value is `${GITHUB_PERSONAL_ACCESS_TOKEN}` by design (never a literal). Export it
+   in your shell before that server will connect.
+9. **The `autosearch` MCP entry was broken and has been removed.** `autosearch-ai`'s installer
+   (npx step, §5) auto-registers a project-scoped MCP server via `~/.claude.json`, separate from
+   this repo's `.mcp.json`. It failed to connect: its own dependency resolution pulled in a package
+   named `mcp` at version `2.0.0` with no `fastmcp` submodule — inconsistent with the real MCP
+   Python SDK's API, which `autosearch`'s own code imports (`from mcp.server.fastmcp import
+   FastMCP`). This is a bug in `autosearch-ai`'s packaging, not in this repo's config. The
+   `autosearch` CLI itself is unaffected and confirmed working (27/40 channels ready, arXiv/PubMed/
+   OpenAlex/DBLP all keyless-ready) — only its bundled MCP server was broken. Removed via
+   `claude mcp remove autosearch` rather than hand-patched, since patching a third party's
+   dependency pin isn't something to maintain here.
 7. `serena project create` also generated `LightMem/.serena/{project.yml,project.local.yml}`.
    `project.yml` is meant to be versioned (per its own header comment); left uncommitted since
    `LightMem/` is a separate repo with its own review process — a decision for whoever next
