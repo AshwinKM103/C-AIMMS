@@ -1,43 +1,49 @@
 # Workflow: Add or modify a memory backend
 
-## 1. Know which subsystem you are extending
+FluxMem is the only subsystem in `LightMem/` (`docs/adr/0001-isolate-fluxmem.md`).
+lightmem-core's factory/registration pattern (`factory/retriever/*/factory.py`) was deleted
+with it — FluxMem has no equivalent factory. Extension is by subclassing one of three
+abstract base classes in `src/fluxmem/interfaces/`, not by registering into a factory.
 
-| Subsystem | Dense | Sparse | Notes |
+## 1. Pick the interface you're extending
+
+| Interface | Abstract base | Default implementation | Extension point |
 |---|---|---|---|
-| `lightmem` core | Qdrant | none (stub) | the factory pattern lives here |
-| `fluxmem` | FAISS | real BM25 fusion | `bm25_weight` / `dense_weight` |
-| `em2mem` | VLM2Vec embeddings | — | multimodal + semantic graph |
-| `baselines/**` | vendored mem0 / langmem / agentic_memory | — | **comparison points, not production** |
+| Vector store | `BaseVectorStore` (`interfaces/vectorstore.py`) | `FAISSVectorStore` | `add`, `search`, `delete`, `get_vector` |
+| LLM | `BaseLLM` (`interfaces/llm.py`) | `OpenAILLM` | 6 abstract methods — read `llm.py` before implementing |
+| Embedder | `BaseEmbedder` (`interfaces/embedder.py`) | `OpenAIEmbedder` | 3 abstract methods — read `embedder.py` before implementing |
 
-Extending a baseline changes a published comparison. Extending the core changes the system.
-These are different acts with different review bars.
+FluxMem's retrieval fusion (`retrieval/semantic_retriever.py`, `dense_weight` /
+`bm25_weight`) is not itself pluggable — it's a concrete class that consumes whatever
+`BaseVectorStore` you construct it with.
 
-## 2. Follow the factory pattern
-Core retrievers register through `src/lightmem/factory/retriever/…/factory.py`, with a matching
-pydantic config under `src/lightmem/configs/retriever/…`. Read `qdrant.py` and its config as the
-reference implementation before writing a new one — including how it validates that exactly one
-connection mode is supplied.
+## 2. Match the abstract surface exactly
 
-## 3. Match the existing surface
-A retriever is expected to provide: `create_col`, `insert`, `search`, `get`, `list`, `scroll`,
-`update`, `delete`, `delete_col`, `col_info`, `list_cols`, `reset`, `exists`. Partial
-implementations break `/compare` runs in non-obvious ways.
+Every `@abstractmethod` on the base class must be implemented with the same signature. A
+partial implementation fails at instantiation (Python enforces this for `ABC` subclasses),
+which is stricter than lightmem-core's factory pattern was — no silent partial registration
+is possible here.
 
-## 4. Do not repeat the rmtree footgun
-If your backend has a destructive path, make it explicit and opt-in. Do not delete user data as a
-side effect of construction.
+## 3. No destructive defaults
 
-## 5. Verify with serena, not grep
+FluxMem has no equivalent of the old Qdrant `rmtree`-on-construct footgun (verified: no
+`shutil.rmtree` anywhere in `src/fluxmem/`). Keep it that way — if a new backend has a
+destructive path, make it explicit and opt-in, never a side effect of construction.
+
+## 4. Verify with serena, not grep
+
 ```
-rename / find-referencing-symbols   # serena, LSP-accurate
-codegraph impact <symbol>           # what a change reaches
+find-referencing-symbols   # serena, LSP-accurate — who constructs this base class today
+codegraph impact <symbol>  # what a change reaches
 ```
 
-## 6. Test and document
-- Unit tests for the retriever surface; property-based tests for retrieval invariants
-  (`testing-strategies` skill).
+## 5. Test and document
+
+- FluxMem has no test suite today (a pre-existing gap, not created by this workflow) — add
+  unit tests for your new implementation regardless.
 - Record the choice as an ADR if it changes architecture: `/adr`.
-- Update `.claude/rules/storage-invariants.md` if you added a new store with its own defaults.
+- Update `.claude/rules/storage-invariants.md` if the new backend has its own defaults worth
+  recording in an experiment record.
 
 ## Related
-`qdrant-ops` skill · `vector-database-engineer`, `mcp-developer` agents · `/adr`
+`vector-database-engineer`, `mcp-developer` agents · `/adr`

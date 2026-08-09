@@ -2,7 +2,9 @@
 
 Surveying the Claude Code ecosystem for tooling surfaced ~13 persistent-memory systems. Several
 are not tools we would install — they are **prior art for C-AIMMS**, and two publish numbers on
-the exact benchmarks in `LightMem/experiments/`.
+LongMemEval/LoCoMo, the benchmarks the now-deleted lightmem-core/EM²Mem harnesses used to run
+in-repo (`docs/adr/0001-isolate-fluxmem.md`) and that FluxMem currently evaluates against only
+ad hoc, via `FluxMem.md`'s inline examples.
 
 **All figures below are self-reported by their authors. We have reproduced none of them.**
 Treat them as claims to verify, not as a leaderboard.
@@ -79,8 +81,8 @@ on independently. Its Mastra/Zep/Mem0 comparison row is a ready-made baseline ta
    different reader models, different judge protocols. Cortex reports R@10, axme-code reports R@5
    and E2E. Any comparison table we publish has to normalise this or say plainly that it cannot.
 3. **Token-per-correct-answer is becoming a reported axis**, not just accuracy (axme-code's ~10K/answer,
-   reporecall's 75.4% reduction, Cortex's stage-assembly efficiency). Consistent with LightMem's own
-   efficiency framing — and a reason to record token cost in every run record.
+   reporecall's 75.4% reduction, Cortex's stage-assembly efficiency). FluxMem has no equivalent
+   efficiency claim of its own yet — a reason to record token cost in every run record from the start.
 4. **Retrieval-quality claims cluster far above end-to-end claims** (97–98% R@k vs 89% E2E). The gap
    between "retrieved the right memory" and "answered correctly" is where the interesting work is.
 

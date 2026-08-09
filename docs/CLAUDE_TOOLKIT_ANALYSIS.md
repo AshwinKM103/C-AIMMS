@@ -7,6 +7,14 @@ team, GitHub-backed, COLM track).
 **Revised:** 2026-08-09 (second pass). Supersedes the first pass, which excluded external
 components, did not know a Claude Code stack was already installed, and guessed at storage.
 
+> **Stale as of `docs/adr/0001-isolate-fluxmem.md` (2026-08-09).** This report describes a
+> four-subsystem `LightMem/` (lightmem-core, FluxMem, EM²Mem, StructMem). Only FluxMem
+> remains. Every mention below of Qdrant, `qdrant-ops`, pickle-based baseline layers,
+> `lightmem-core`/`em2mem`/`structmem`, and the `longmemeval`/`locomo`/`egolife` harnesses
+> describes deleted code — kept here as the historical record of that toolkit-selection
+> pass, not as current guidance. Current storage guidance lives in
+> `.claude/rules/storage-invariants.md`.
+
 ---
 
 ## 0. What this project actually is

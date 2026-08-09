@@ -18,47 +18,44 @@ plugin/MCP server).
 
 ## Stack
 
-Python 3.10–3.11 · torch 2.8 · transformers 4.57 · sentence-transformers · **Qdrant** (vector store)
-· networkx (graph memory) · llmlingua (compression) · openai / ollama / vllm backends · pydantic 2
-· pytest · ruff. Three subsystems: `lightmem` (core), `fluxmem`, `em2mem`.
+Python 3.10–3.11 · numpy · **FAISS** (vector store) · openai backend · scikit-learn · pydantic 2
+· pytest · ruff. One subsystem: `fluxmem` (`docs/adr/0001-isolate-fluxmem.md` — lightmem-core
+and em2mem were deleted).
 
-- Conda env: `conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem`
+- Conda env: `conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem` (name predates the
+  fluxmem-only isolation; kept as a historical artifact per `docs/adr/0001-isolate-fluxmem.md`)
 - Local model paths live in `LightMem/.env` (gitignored): `LLMLINGUA_MODEL_PATH`,
   `EMBEDDING_MODEL_PATH`, `QWEN3_4B_INSTRUCT_PATH`, `LLAMA31_8B_INSTRUCT_PATH`
 - **Large artifacts go under `/mnt/ssd/users/durgesh/`, never `/home`** (small disk, near-full)
 
 ## Storage invariants (the short version)
 
-Full rules: `.claude/rules/storage-invariants.md`. The two that bite:
+Full rules: `.claude/rules/storage-invariants.md`. The one that bites:
 
-1. `QdrantConfig.path` defaults to `/tmp/qdrant`, and constructing the client with `on_disk=False`
-   (**the default**) on an existing path calls `shutil.rmtree` on it. Re-running an experiment
-   silently destroys the previous store.
-2. BM25 hybrid exists in **FluxMem only**. `lightmem/factory/retriever/contextretriever/bm25.py`
-   is an empty stub — do not record "BM25 enabled" for a lightmem-core run.
-
-Never commit `*.pkl`; pickle artifacts are bound to the exact torch/transformers build that wrote them.
+1. FluxMem's retrieval is a weighted dense (FAISS) + BM25 fusion (`dense_weight` /
+   `bm25_weight`, default `1.0` / `0.5`, in `retrieval/semantic_retriever.py`). Record both
+   weights in the experiment record — a retrieval metric is not reproducible without them.
 
 ## Routing — where to go for what
 
-| When you are…                    | Reach for                                                                                |
-| -------------------------------- | ---------------------------------------------------------------------------------------- |
-| starting a new experiment        | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track`            |
-| comparing runs                   | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent                         |
-| a metric moved unexpectedly      | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review`                     |
-| slow code or a memory blowup     | `/profile`, `/profile-memory`, `/optimize` · `performance-engineer` agent                |
-| a confusing bug with no test yet | `/debug`, `/trace` · `error-detective` agent                                             |
-| touching Qdrant / persistence    | `qdrant-ops` skill · `.claude/rules/storage-invariants.md`                               |
-| adding a memory backend          | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent                |
-| navigating unfamiliar code       | `codegraph explore <query>` or serena's symbol tools                                     |
-| renaming a symbol repo-wide      | serena (LSP-accurate) — not grep-and-replace, not `/rename`                              |
-| choosing a library               | `/compare-tools`, `/evaluate` → record the outcome with `/adr`                           |
-| looking for prior work           | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher` |
-| reviewing / merging              | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review`                    |
-| writing Python                   | `python-best-practices` skill · `python-engineer` agent                                  |
-| prompts / RAG / retrieval design | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                   |
-| ending a session                 | `/checkpoint` — claude-mem captures the rest automatically                               |
-| anything not above               | `docs/component-index.md` — full catalog, all commands/agents/skills/hooks/plugins/MCP   |
+| When you are…                    | Reach for                                                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| starting a new experiment        | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track`                                    |
+| comparing runs                   | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent                                                 |
+| a metric moved unexpectedly      | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review`                                             |
+| slow code or a memory blowup     | `/profile`, `/profile-memory`, `/optimize` · `performance-engineer` agent                                        |
+| a confusing bug with no test yet | `/debug`, `/trace` · `error-detective` agent                                                                     |
+| touching FAISS / persistence     | `.claude/rules/storage-invariants.md`                                                                            |
+| adding a memory backend          | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent                                        |
+| navigating unfamiliar code       | `codegraph explore <query>` or serena's symbol tools — see `.claude/rules/code-navigation.md`, not raw grep/find |
+| renaming a symbol repo-wide      | serena (LSP-accurate) — not grep-and-replace, not `/rename`                                                      |
+| choosing a library               | `/compare-tools`, `/evaluate` → record the outcome with `/adr`                                                   |
+| looking for prior work           | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher`                         |
+| reviewing / merging              | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review`                                            |
+| writing Python                   | `python-best-practices` skill · `python-engineer` agent                                                          |
+| prompts / RAG / retrieval design | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                                           |
+| ending a session                 | `/checkpoint` — claude-mem captures the rest automatically                                                       |
+| anything not above               | `docs/component-index.md` — full catalog, all commands/agents/skills/hooks/plugins/MCP                           |
 
 Rules in `.claude/rules/` are always active — no need to invoke them.
 `storage-invariants.md` is path-scoped to retriever/memory/config/experiment paths.
@@ -79,10 +76,19 @@ Each was deliberately excluded. Re-adding them creates duplicate systems:
 
 ## Installed elsewhere (user scope, not this repo)
 
-`claude-mem` (cross-session memory) · `headroom` (token compression proxy) · `task-observer`
-(skill-opportunity capture) · `claude-code-setup` · `omniroute` (MCP router) · CodeGraph CLI.
-See `LightMem/CLAUDE.md` for their operational detail. Adopted externals and their install
-commands: `setup/install-external.sh`.
+`claude-mem` (cross-session memory) · `headroom` (token compression proxy — **project-scoped, not
+the durable user-wide install**: a background `headroom proxy --port 8787` process routes only this
+project's sessions, via `ANTHROPIC_BASE_URL`/`ENABLE_TOOL_SEARCH` in the gitignored
+`.claude/settings.local.json`, not `~/.claude/settings.json`. Verified live via `curl
+127.0.0.1:8787/stats` — real requests compressed, tool-schema deferral saving thousands of tokens
+per turn. `headroom doctor`'s "claude: not routed" line is a false negative — it only checks the
+user-scope install path, which was deliberately skipped so other projects/teammates aren't affected.
+The proxy itself does not survive a reboot; restart it with `nohup headroom proxy --port 8787
+
+> ~/.headroom/logs/proxy.log 2>&1 &`if`headroom doctor`shows`proxy: fail`) · `task-observer`(skill-opportunity capture) ·`claude-code-setup`·`omniroute`(MCP router) · CodeGraph CLI
+(verified active — index present,`codegraph explore`/`sync`working).
+See`LightMem/CLAUDE.md`for their operational detail. Adopted externals and their install
+commands:`setup/install-external.sh`.
 
 ## Conventions
 
@@ -90,3 +96,5 @@ commands: `setup/install-external.sh`.
 - Decisions become ADRs (`/adr`) — Nygard format, sequential, supersede rather than edit.
 - Diagrams are Mermaid in `docs/diagrams/`, so they render and diff in PRs.
 - Report what you verified and what you assumed (`.claude/rules/evidence-discipline.md`).
+- After any multi-file change (rename, delete a subsystem, large refactor), run
+  `codegraph sync` so the index doesn't quietly drift stale — see `.claude/rules/code-navigation.md`.

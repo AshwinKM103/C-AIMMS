@@ -17,8 +17,8 @@ The team loop is code → review → merge. Codex independently reviews everythi
 - `/pr-review <n>` for structured feedback; `code-reviewer` agent for a deeper security/perf pass.
 - For research code specifically, ask: **if this is wrong, would any test fail?** If not, that is
   the review comment.
-- Check whether a baseline under `baselines/**` was touched. If so, every number in that column
-  needs re-stating.
+- Check whether a `baseline:<name>` comparison point (`.claude/skills/experiment-discipline/`)
+  was touched. If so, every number in that column needs re-stating.
 
 ## Merging
 - Direct pushes to `main`/`master` prompt for confirmation; force-pushes to them are blocked
