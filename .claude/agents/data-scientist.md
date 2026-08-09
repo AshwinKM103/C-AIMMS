@@ -2,7 +2,7 @@
 name: data-scientist
 description: Statistical analysis, data visualization, hypothesis testing, and exploratory data analysis with Python
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # Data Scientist Agent

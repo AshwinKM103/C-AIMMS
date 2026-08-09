@@ -19,6 +19,8 @@ Save a session checkpoint capturing current progress, decisions, and next steps.
 5. Save the checkpoint to `.claude/checkpoints/<timestamp>.md`.
 6. Update `CLAUDE.md` session notes with a brief summary.
 7. Stage and commit if there are meaningful uncommitted changes.
+8. Run `prism analyze -p .` — it has no automatic schedule, so a checkpoint is a good
+   forcing function to catch CLAUDE.md re-read cost or tool-health drift.
 
 ## Format
 
@@ -26,22 +28,27 @@ Save a session checkpoint capturing current progress, decisions, and next steps.
 # Checkpoint: <timestamp>
 
 ## Completed
+
 - <what was accomplished>
 
 ## Current State
+
 - Branch: <branch-name>
 - Uncommitted changes: <count>
 - Tests: <pass/fail status>
 
 ## Open Questions
+
 - <question needing resolution>
 
 ## Next Steps
+
 1. <highest priority task>
 2. <second priority task>
 3. <third priority task>
 
 ## Context for Next Session
+
 <anything the next session needs to know>
 ```
 

@@ -2,7 +2,7 @@
 name: nlp-engineer
 description: NLP pipeline development with text processing, embeddings, classification, NER, and transformer fine-tuning
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # NLP Engineer Agent

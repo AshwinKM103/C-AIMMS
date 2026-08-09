@@ -2,7 +2,7 @@
 name: ai-engineer
 description: AI application development with model API integration, RAG pipelines, agent frameworks, and embedding strategies
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # AI Engineer Agent

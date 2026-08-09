@@ -2,7 +2,7 @@
 name: error-detective
 description: Error tracking, stack trace analysis, reproduction step generation, and root cause identification
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: haiku
 ---
 
 # Error Detective Agent

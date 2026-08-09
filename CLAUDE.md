@@ -22,6 +22,11 @@ Python 3.10–3.11 · numpy · **FAISS** (vector store) · openai backend · sci
 · pytest · ruff. One subsystem: `fluxmem` (`docs/adr/0001-isolate-fluxmem.md` — lightmem-core
 and em2mem were deleted).
 
+**Model assignments for cost optimization** (automatic via `smart-agent`):
+- **Haiku** (9 agents): read-only analysis — academic-researcher, code-reviewer, data-researcher, error-detective, knowledge-synthesizer, performance-engineer, research-analyst, search-specialist, technology-scout
+- **Sonnet 5** (22 agents): general-purpose, balanced cost/capability — most agents
+- **Opus** (4 agents): heavy reasoning — autoresearch-agent, llm-architect, ml-engineer, multi-agent-coordinator
+
 - Conda env: `conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem` (name predates the
   fluxmem-only isolation; kept as a historical artifact per `docs/adr/0001-isolate-fluxmem.md`)
 - Local model paths live in `LightMem/.env` (gitignored): `LLMLINGUA_MODEL_PATH`,
@@ -55,10 +60,20 @@ Full rules: `.claude/rules/storage-invariants.md`. The one that bites:
 | writing Python                   | `python-best-practices` skill · `python-engineer` agent                                                          |
 | prompts / RAG / retrieval design | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                                           |
 | ending a session                 | `/checkpoint` — claude-mem captures the rest automatically                                                       |
+| reducing subagent costs          | `smart-agent` command · `.claude/hooks/scripts/model-router.js` — read-only agents downgrade to Haiku automatically  |
 | anything not above               | `docs/component-index.md` — full catalog, all commands/agents/skills/hooks/plugins/MCP                           |
 
 Rules in `.claude/rules/` are always active — no need to invoke them.
 `storage-invariants.md` is path-scoped to retriever/memory/config/experiment paths.
+
+## Auto-optimize on request
+
+If a message asks, in any phrasing, to optimize/improve/tighten/rewrite/sharpen the _prompt itself_
+(e.g. "optimize this prompt", "make this a better prompt", "can you improve how I worded that",
+"tighten this up before running it") — do not act on the raw wording. First run it through the
+`prompt-engineering` skill (or the `prompt-engineer` agent for a heavier rewrite), show the
+optimized version, and proceed using the optimized prompt, not the original. This is opt-in per
+message, triggered only by an explicit ask — it is not a standing rewrite of every prompt.
 
 ## Do not reach for these
 

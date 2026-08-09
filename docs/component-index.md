@@ -162,7 +162,7 @@ Also from installed plugins: `/logic-review`, `/logic-explain`, `/logic-diff`, `
 
 ## Rules (`.claude/rules/`, always active)
 
-`agents.md` · `code-review.md` · `coding-style.md` · `dependency-management.md` ·
-`documentation.md` · `error-handling.md` · `evidence-discipline.md` · `git-workflow.md` ·
-`monitoring.md` · `naming.md` · `security.md` · `storage-invariants.md` (path-scoped) ·
-`testing.md`
+`agents.md` · `code-navigation.md` · `code-review.md` · `coding-style.md` ·
+`dependency-management.md` · `documentation.md` · `error-handling.md` · `evidence-discipline.md` ·
+`git-workflow.md` · `monitoring.md` · `naming.md` · `security.md` ·
+`storage-invariants.md` (path-scoped) · `testing.md`

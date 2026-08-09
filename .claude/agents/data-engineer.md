@@ -2,7 +2,7 @@
 name: data-engineer
 description: Data pipeline engineering with ETL/ELT workflows, Spark, data warehousing, and pipeline orchestration
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # Data Engineer Agent
