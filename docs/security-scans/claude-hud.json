@@ -1,0 +1,418 @@
+{
+  "target": {
+    "path": "/home/durgesh/.claude/plugins/marketplaces/claude-hud",
+    "platform": "npm",
+    "url": null
+  },
+  "grade": "F",
+  "risk_level": "critical",
+  "key_risks": [
+    "HIGH: Malicious signature: Unicode/zero-width prompt injection (P5)",
+    "HIGH: Unexpected capability for git skill: credential_read (M1)",
+    "HIGH: Publishable package contains source map file: dist/auth.js.map (M7)",
+    "MEDIUM: Hex/Unicode escape obfuscation (P3)"
+  ],
+  "behavior_tags": [],
+  "findings": [
+    {
+      "rule_id": "P5",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Malicious signature: Unicode/zero-width prompt injection",
+      "description": "Matched known malicious signature MAL-061: Unicode/zero-width prompt injection",
+      "file_path": "src/render/index.ts",
+      "line": 89,
+      "code_snippet": "if (/^\\p{Mark}$/u.test(char) || char === '\\u200D' || char === '\\uFE0E' || char === '\\uFE0F') {",
+      "evidence": "Signature MAL-061 matched (SHA256: cf4c07521adde219...)",
+      "tags": [
+        "malicious_signature",
+        "prompt_injection",
+        "steganography"
+      ],
+      "remediation": "This file matches a known malicious pattern. Do not install or execute.",
+      "references": [],
+      "suppressed": false
+    },
+    {
+      "rule_id": "P5",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Malicious signature: Unicode/zero-width prompt injection",
+      "description": "Matched known malicious signature MAL-061: Unicode/zero-width prompt injection",
+      "file_path": "src/utils/sanitize.ts",
+      "line": 12,
+      "code_snippet": "'\\\\u061C\\\\u200E\\\\u200F' +",
+      "evidence": "Signature MAL-061 matched (SHA256: e5e9f02dde73dd54...)",
+      "tags": [
+        "malicious_signature",
+        "prompt_injection",
+        "steganography"
+      ],
+      "remediation": "This file matches a known malicious pattern. Do not install or execute.",
+      "references": [],
+      "suppressed": false
+    },
+    {
+      "rule_id": "P5",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Malicious signature: Unicode/zero-width prompt injection",
+      "description": "Matched known malicious signature MAL-061: Unicode/zero-width prompt injection",
+      "file_path": "tests/extra-cmd.test.js",
+      "line": 30,
+      "code_snippet": "const input = 'Hello\\u200EWorld\\u202ATest\\u2069End';",
+      "evidence": "Signature MAL-061 matched (SHA256: 717ce88f68a44160...)",
+      "tags": [
+        "malicious_signature",
+        "prompt_injection",
+        "steganography"
+      ],
+      "remediation": "This file matches a known malicious pattern. Do not install or execute.",
+      "references": [],
+      "suppressed": false
+    },
+    {
+      "rule_id": "P3",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "medium",
+      "confidence": 0.7,
+      "title": "Hex/Unicode escape obfuscation",
+      "description": "Line contains 8 escape sequences, possible obfuscation",
+      "file_path": "tests/render.test.js",
+      "line": 4055,
+      "code_snippet": "assert.doesNotMatch(compact, /[\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069]/i);",
+      "evidence": "Decoded: assert.doesNotMatch(compact, /[\u0000-\u001f-‪-‮⁦-⁩]/i);",
+      "tags": [
+        "obfuscation"
+      ],
+      "remediation": "Use plain text strings. Obfuscation is a red flag.",
+      "references": [],
+      "suppressed": false
+    },
+    {
+      "rule_id": "P3",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "medium",
+      "confidence": 0.7,
+      "title": "Hex/Unicode escape obfuscation",
+      "description": "Line contains 8 escape sequences, possible obfuscation",
+      "file_path": "tests/render.test.js",
+      "line": 4056,
+      "code_snippet": "assert.doesNotMatch(expanded, /[\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069]/i);",
+      "evidence": "Decoded: assert.doesNotMatch(expanded, /[\u0000-\u001f-‪-‮⁦-⁩]/i);",
+      "tags": [
+        "obfuscation"
+      ],
+      "remediation": "Use plain text strings. Obfuscation is a red flag.",
+      "references": [],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M1",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.75,
+      "title": "Unexpected capability for git skill: credential_read",
+      "description": "A 'git' skill would not normally require 'credential_read' capability. Allowed capabilities for this category: file_read, file_write, shell_git",
+      "file_path": null,
+      "line": null,
+      "code_snippet": null,
+      "evidence": null,
+      "tags": [
+        "capability_mismatch",
+        "suspicious"
+      ],
+      "remediation": "Review why a git skill needs credential_read access.",
+      "references": [
+        "CWE-250"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains source map file: dist/auth.js.map",
+      "description": "Found 'dist/auth.js.map' which is a source map file. This type of file should not be included in published packages.",
+      "file_path": "dist/auth.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/auth.js.map (7.9 KB)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Source maps expose original unminified source code. This is how Claude Code's 512K lines of internal code leaked via npm. Remove before publishing.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains source map file: dist/claude-config-dir.js.map",
+      "description": "Found 'dist/claude-config-dir.js.map' which is a source map file. This type of file should not be included in published packages.",
+      "file_path": "dist/claude-config-dir.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/claude-config-dir.js.map (971 bytes)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Source maps expose original unminified source code. This is how Claude Code's 512K lines of internal code leaked via npm. Remove before publishing.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains source map file: dist/extra-cmd.d.ts.map",
+      "description": "Found 'dist/extra-cmd.d.ts.map' which is a source map file. This type of file should not be included in published packages.",
+      "file_path": "dist/extra-cmd.d.ts.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/extra-cmd.d.ts.map (530 bytes)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Source maps expose original unminified source code. This is how Claude Code's 512K lines of internal code leaked via npm. Remove before publishing.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains source map file: dist/git-runner.js.map",
+      "description": "Found 'dist/git-runner.js.map' which is a source map file. This type of file should not be included in published packages.",
+      "file_path": "dist/git-runner.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/git-runner.js.map (8.8 KB)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Source maps expose original unminified source code. This is how Claude Code's 512K lines of internal code leaked via npm. Remove before publishing.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains source map file: dist/debug.d.ts.map",
+      "description": "Found 'dist/debug.d.ts.map' which is a source map file. This type of file should not be included in published packages.",
+      "file_path": "dist/debug.d.ts.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/debug.d.ts.map (194 bytes)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Source maps expose original unminified source code. This is how Claude Code's 512K lines of internal code leaked via npm. Remove before publishing.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Multiple source map file files found (120 total)",
+      "description": "Found 120 files matching '**/*.map'. Only first 5 are listed individually.",
+      "file_path": null,
+      "line": null,
+      "code_snippet": null,
+      "evidence": "Total: 120 files matching **/*.map",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Source maps expose original unminified source code. This is how Claude Code's 512K lines of internal code leaked via npm. Remove before publishing.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains javascript source map: dist/auth.js.map",
+      "description": "Found 'dist/auth.js.map' which is a javascript source map. This type of file should not be included in published packages.",
+      "file_path": "dist/auth.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/auth.js.map (7.9 KB)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Exposes original TypeScript/JavaScript source. Remove from published packages.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains javascript source map: dist/claude-config-dir.js.map",
+      "description": "Found 'dist/claude-config-dir.js.map' which is a javascript source map. This type of file should not be included in published packages.",
+      "file_path": "dist/claude-config-dir.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/claude-config-dir.js.map (971 bytes)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Exposes original TypeScript/JavaScript source. Remove from published packages.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains javascript source map: dist/git-runner.js.map",
+      "description": "Found 'dist/git-runner.js.map' which is a javascript source map. This type of file should not be included in published packages.",
+      "file_path": "dist/git-runner.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/git-runner.js.map (8.8 KB)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Exposes original TypeScript/JavaScript source. Remove from published packages.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains javascript source map: dist/constants.js.map",
+      "description": "Found 'dist/constants.js.map' which is a javascript source map. This type of file should not be included in published packages.",
+      "file_path": "dist/constants.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/constants.js.map (168 bytes)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Exposes original TypeScript/JavaScript source. Remove from published packages.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Publishable package contains javascript source map: dist/context-cache.js.map",
+      "description": "Found 'dist/context-cache.js.map' which is a javascript source map. This type of file should not be included in published packages.",
+      "file_path": "dist/context-cache.js.map",
+      "line": null,
+      "code_snippet": null,
+      "evidence": "File: dist/context-cache.js.map (7.8 KB)",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Exposes original TypeScript/JavaScript source. Remove from published packages.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "M7",
+      "engine": "manifest",
+      "layer": "metadata",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Multiple javascript source map files found (60 total)",
+      "description": "Found 60 files matching '**/*.js.map'. Only first 5 are listed individually.",
+      "file_path": null,
+      "line": null,
+      "code_snippet": null,
+      "evidence": "Total: 60 files matching **/*.js.map",
+      "tags": [
+        "debug_artifact",
+        "publish_hygiene",
+        "supply_chain"
+      ],
+      "remediation": "Exposes original TypeScript/JavaScript source. Remove from published packages.",
+      "references": [
+        "CWE-540"
+      ],
+      "suppressed": false
+    }
+  ],
+  "scan_duration_ms": 1185
+}

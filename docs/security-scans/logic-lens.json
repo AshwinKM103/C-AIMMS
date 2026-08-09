@@ -1,0 +1,64 @@
+{
+  "target": {
+    "path": "/home/durgesh/.claude/plugins/marketplaces/logic-lens-marketplace",
+    "platform": "npm",
+    "url": null
+  },
+  "grade": "F",
+  "risk_level": "critical",
+  "key_risks": [
+    "CRITICAL: Agent manipulation: Urgency pressure (bypassing safety checks) (P10)",
+    "HIGH: Persistence mechanism reference (S13)"
+  ],
+  "behavior_tags": [
+    "installs_persistence"
+  ],
+  "findings": [
+    {
+      "rule_id": "S13",
+      "engine": "ast",
+      "layer": "behavior",
+      "severity": "high",
+      "confidence": 0.75,
+      "title": "Persistence mechanism reference",
+      "description": "Code references persistence path: systemctl restart|restart.*(?:failed|migration)|failed.*migration.*restart",
+      "file_path": "scripts/grade-iteration.py",
+      "line": 733,
+      "code_snippet": "(\"identifies service restarts after failed migration\", lambda t: re.search(\n            r'systemctl restart|restart.*(?:failed|migration)|failed.*migration.*restart', t, re.I | re.S) is not None),\n        (\"identifies false success notification\", lambda t: re.search(",
+      "evidence": "String contains persistence indicator: systemctl",
+      "tags": [
+        "persistence"
+      ],
+      "remediation": "Skills should not install system services or modify startup configuration.",
+      "references": [
+        "MITRE T1543.001"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "P10",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "critical",
+      "confidence": 0.75,
+      "title": "Agent manipulation: Urgency pressure (bypassing safety checks)",
+      "description": "Text contains a psychological manipulation pattern (urgency_bypass) that can exploit LLM alignment training to make agents disable safety features, leak data, or self-destruct.",
+      "file_path": "evals/real-world/probes/002-exit-code-swallowed/fixed.sh",
+      "line": 14,
+      "code_snippet": "# re-run forever. Emptiness is guarded at write time below, not by the skip check.",
+      "evidence": "Matched: skip check",
+      "tags": [
+        "manipulation",
+        "social_engineering",
+        "urgency_bypass"
+      ],
+      "remediation": "Remove manipulation language. If this is a red-team test, add to .prismignore. Agent-facing text should not contain patterns that exploit alignment training.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "suppressed": false
+    }
+  ],
+  "scan_duration_ms": 567
+}

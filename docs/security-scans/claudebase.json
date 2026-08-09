@@ -1,0 +1,66 @@
+{
+  "target": {
+    "path": "/home/durgesh/.claude/plugins/marketplaces/rohithzr",
+    "platform": null,
+    "url": null
+  },
+  "grade": "F",
+  "risk_level": "critical",
+  "key_risks": [
+    "CRITICAL: Agent manipulation: Urgency pressure (bypassing safety checks) (P10)",
+    "HIGH: Unsafe deserialization via pickle.load() (S12)"
+  ],
+  "behavior_tags": [
+    "unsafe_deserialization"
+  ],
+  "findings": [
+    {
+      "rule_id": "S12",
+      "engine": "ast",
+      "layer": "behavior",
+      "severity": "high",
+      "confidence": 0.9,
+      "title": "Unsafe deserialization via pickle.load()",
+      "description": "Code uses pickle.load() which can execute arbitrary code during deserialization",
+      "file_path": "tests/bats/docs/list-links.py",
+      "line": 3,
+      "code_snippet": "with open(\"build/doctrees/environment.pickle\", \"rb\") as f:\n    dat = pickle.load(f)\nprint(dat.domaindata['std']['labels'])",
+      "evidence": "Data source taint: unknown",
+      "tags": [
+        "deserialization",
+        "execution"
+      ],
+      "remediation": "Replace pickle with JSON or MessagePack. Use yaml.safe_load() instead of yaml.load().",
+      "references": [
+        "MITRE T1059.006",
+        "CWE-502"
+      ],
+      "suppressed": false
+    },
+    {
+      "rule_id": "P10",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "critical",
+      "confidence": 0.75,
+      "title": "Agent manipulation: Urgency pressure (bypassing safety checks)",
+      "description": "Text contains a psychological manipulation pattern (urgency_bypass) that can exploit LLM alignment training to make agents disable safety features, leak data, or self-destruct.",
+      "file_path": "skills/sync-pull/SKILL.md",
+      "line": 36,
+      "code_snippet": "- `--yes` / `-y` — Skip confirmation prompt (auto-approve)",
+      "evidence": "Matched: Skip confirmation",
+      "tags": [
+        "manipulation",
+        "social_engineering",
+        "urgency_bypass"
+      ],
+      "remediation": "Remove manipulation language. If this is a red-team test, add to .prismignore. Agent-facing text should not contain patterns that exploit alignment training.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "suppressed": false
+    }
+  ],
+  "scan_duration_ms": 540
+}

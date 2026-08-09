@@ -1,0 +1,37 @@
+{
+  "target": {
+    "path": "/home/durgesh/.claude/plugins/marketplaces/apurvbazari-plugins/notify",
+    "platform": null,
+    "url": null
+  },
+  "grade": "C",
+  "risk_level": "caution",
+  "key_risks": [
+    "MEDIUM: IOC match: GitHub raw shell script download (P8)"
+  ],
+  "behavior_tags": [],
+  "findings": [
+    {
+      "rule_id": "P8",
+      "engine": "pattern",
+      "layer": "behavior",
+      "severity": "medium",
+      "confidence": 0.9,
+      "title": "IOC match: GitHub raw shell script download",
+      "description": "URL matches known malicious infrastructure pattern",
+      "file_path": "scripts/install-notifier.sh",
+      "line": 26,
+      "code_snippet": "echo '  /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"'",
+      "evidence": "URL: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh",
+      "tags": [
+        "ioc",
+        "network",
+        "c2"
+      ],
+      "remediation": "This URL matches known malicious infrastructure. Remove immediately.",
+      "references": [],
+      "suppressed": false
+    }
+  ],
+  "scan_duration_ms": 71
+}

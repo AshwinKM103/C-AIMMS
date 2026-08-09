@@ -367,14 +367,46 @@ instead of reading the explicit refspec — caught by the test above and fixed b
 
 ### Not executed, and why
 
-- **No GitHub repo created.** `git init` is done locally; `gh repo create` needs the org/account
-  name and publishes outward. One command, yours to run.
-- **No external tools installed.** `setup/install-external.sh` holds the exact commands. They are
-  not run automatically because several `pip install` into whatever Python is active, and the
-  lightmem env has pinned, load-bearing versions (torch 2.8, transformers 4.57). Use pipx or a
-  separate tools env.
-- **Prism Scanner has not graded anything yet** — it cannot, until the plugins are installed. Run
-  it as step 0 and record the grades here.
+- ~~No GitHub repo created~~ — **done.** `AshwinKM103/C-AIMMS`, private, pushed.
+- ~~No external tools installed~~ — **done**, in isolated environments:
+  `~/.venvs/prism-scanner`, `~/.venvs/cc-tools` (prism-cc + cc-cost — see the collision note
+  below), `uv tool install serena-agent`, plus `ccusage`/`autosearch-ai` via `npx`. The lightmem
+  conda env was never touched.
+- ~~Prism Scanner has not graded anything yet~~ — **done, see below.**
+
+### A real bug found while installing: prism-cc and prism-scanner collide
+
+Both PyPI packages install a top-level module named `prism` with *different* CLI entry points
+(`prism.cli:app` vs `prism.cli:main`). Installing both into one venv silently merges their
+`site-packages/prism/` directories — confirmed by inspecting the merged package, which contained
+files from both (`scanner.py`/`rules/` alongside `dashboard.py`/`advisor.py`), with whichever
+installed last winning the `prism` command. **Neither tool is safe to trust from a shared venv.**
+Fixed: separate venvs (`~/.venvs/prism-scanner`, `~/.venvs/cc-tools`) with thin wrapper scripts at
+`setup/bin/{prism,prism-scanner,cc-cost}` so both are callable without the collision.
+
+### A wrong command caught before it shipped: serena's MCP entry
+
+`.mcp.json`'s serena entry used `--context ide-assistant`, invented from memory while writing the
+first draft — that context does not exist (`serena context list`: `agent`, `claude-code`, `codex`,
+`ide`, `desktop-app`, …). Fixed to `claude-code`, the context built for this exact tool, and
+verified by starting the server directly: it loads 52 tools and activates the `lightmem` project
+correctly.
+
+### Plugin installs — non-interactive after all, and security-scanned
+
+The earlier assumption that `/plugin install` needs an interactive session was wrong — the `claude
+plugin` CLI installs and enables marketplace plugins non-interactively. All four adopted plugins
+(claudebase, logic-lens, claude-hud, notify) are installed and enabled.
+
+Prism Scanner (step 0, as designed) graded all four **F (Critical) × 3, C (Caution) × 1** — a
+19-finding total across CRITICAL/HIGH/MEDIUM severities. Every one was manually verified against
+source and found to be a false positive: pattern matching without taint context (a doc string or a
+test-grading regex containing a suspicious substring) and, most notably, a unicode *sanitizer* in
+claude-hud flagged for containing the injection characters it strips. claude-hud's `credential_read`
+finding was checked further than the rest — confirmed zero network primitives and zero runtime
+dependencies anywhere in its source, so even the flagged local auth-display read has no path to
+exfiltrate anything. Full finding-by-finding writeup and raw scanner JSON:
+`docs/security-scans/README.md`.
 
 ### Config audit — run against the real code
 
@@ -404,3 +436,9 @@ configuration surface looks live; the implementation is not there.
 4. ~~Grep the experiment configs for the Qdrant footguns~~ — **done, see below.**
 5. Add a pointer line in `LightMem/CLAUDE.md` to this umbrella config. (Left untouched otherwise —
    it correctly documents the user-scope stack.)
+6. `gh extension install yahsan2/gh-sub-issue` — installed. Only load-bearing if `ccpm` is later
+   adopted (currently "evaluate later," not installed).
+7. `serena project create` also generated `LightMem/.serena/{project.yml,project.local.yml}`.
+   `project.yml` is meant to be versioned (per its own header comment); left uncommitted since
+   `LightMem/` is a separate repo with its own review process — a decision for whoever next
+   commits there, not made unilaterally here.
