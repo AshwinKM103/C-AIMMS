@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/secret-scanner.js",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit *)",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/commit-guard.js",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git push *)",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/pre-push-check.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/lint-fix.js",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
