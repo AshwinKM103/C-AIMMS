@@ -449,7 +449,20 @@ configuration surface looks live; the implementation is not there.
 8. `github` MCP server warns `Missing environment variables: GITHUB_PERSONAL_ACCESS_TOKEN` — expected,
    the `.mcp.json` value is `${GITHUB_PERSONAL_ACCESS_TOKEN}` by design (never a literal). Export it
    in your shell before that server will connect.
-9. **The `autosearch` MCP entry was broken and has been removed.** `autosearch-ai`'s installer
+9. **claude-mem's worker had never actually run on this machine.** Its `SessionStart` hook
+   (matcher `startup|clear|compact`) starts a background daemon via `bun-runner.js` ->
+   `worker-service.cjs --daemon`, and Bun was not installed anywhere on this system — confirmed
+   (`command -v bun`: nothing; no `~/.bun/`; no shell-rc reference). The hook fails
+   non-blocking, so sessions started fine and nothing looked wrong, but `~/.claude-mem/` (the
+   SQLite+Chroma store) did not exist until Bun was installed and the hook run end-to-end just now.
+   **This changes a claim in §2/§C of this analysis**: claude-mem was described as "already
+   installed... already owns cross-session memory," which was true for "installed" and false for
+   "owns" — it had never captured anything. Fixed: `curl -fsSL https://bun.sh/install | bash`,
+   added to both `~/.bashrc` (the installer's default) and `~/.profile` (for GUI-launched VS Code,
+   which does not reliably source `.bashrc` — see the VS Code PATH note above), then verified by
+   running the hook's exact command by hand: `{"continue":true,"status":"ready"}`, and confirmed the
+   daemon process (`bun .../worker-service.cjs --daemon`) is now actually resident.
+10. **The `autosearch` MCP entry was broken and has been removed.** `autosearch-ai`'s installer
    (npx step, §5) auto-registers a project-scoped MCP server via `~/.claude.json`, separate from
    this repo's `.mcp.json`. It failed to connect: its own dependency resolution pulled in a package
    named `mcp` at version `2.0.0` with no `fastmcp` submodule — inconsistent with the real MCP
