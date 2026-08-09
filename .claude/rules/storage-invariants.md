@@ -1,6 +1,10 @@
 ---
-description: Qdrant, pickle, and experiment-artifact invariants for LightMem
-globs: ["**/retriever/**", "**/memory/**", "**/memory_toolkits/**", "**/experiments/**", "**/configs/**"]
+paths:
+  - "**/retriever/**"
+  - "**/memory/**"
+  - "**/memory_toolkits/**"
+  - "**/experiments/**"
+  - "**/configs/**"
 ---
 
 # Storage Invariants
