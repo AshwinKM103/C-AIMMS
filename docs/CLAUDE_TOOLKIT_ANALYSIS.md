@@ -462,7 +462,29 @@ configuration surface looks live; the implementation is not there.
    which does not reliably source `.bashrc` — see the VS Code PATH note above), then verified by
    running the hook's exact command by hand: `{"continue":true,"status":"ready"}`, and confirmed the
    daemon process (`bun .../worker-service.cjs --daemon`) is now actually resident.
-10. **The `autosearch` MCP entry was broken and has been removed.** `autosearch-ai`'s installer
+10. **Four of the eight `.mcp.json` servers were broken and have been removed** — verified live
+    from inside a VS Code extension session, once `filesystem`/`github`/`memory`/`serena` proved
+    reachable there:
+    - `fetch` (`@modelcontextprotocol/server-fetch`) and `sqlite`
+      (`@modelcontextprotocol/server-sqlite`) — **these npm packages do not exist** (404). Both
+      names came from the toolkit's `mcp-configs/*.json` templates, which are stale.
+      **Security note, not just a bug**: the unscoped npm package `mcp-server-fetch` (no `@modelcontextprotocol/`
+      scope) — the name someone would naturally reach for as a replacement — is a **deliberate
+      typosquat/confusion-canary**, self-described in its own README as *"Security research canary
+      — not for production use... npx-confusion, bug-bounty"*. Do not install it. A legitimate,
+      audited replacement for sqlite exists (`mcp-server-sqlite-npx`, Smithery + MseeP badges) but
+      was not added — it needs its own Prism Scanner pass before being trusted, and there is no
+      current use case driving the need for it yet.
+    - `jupyter` (`uvx mcp-jupyter`) — installs fine, but its own code imports `KernelClient` from
+      `jupyter_kernel_client`, a symbol that package does not export even at its latest version
+      (1.0.1) despite `mcp-jupyter` declaring `jupyter-kernel-client>=0.8.0` as compatible. A real
+      bug in `mcp-jupyter`'s own dependency contract, not fixable by re-pinning from our side.
+    - `bgpt` (`https://mcp.bgpt.pro/sse`) — the hostname does not resolve (`NXDOMAIN`). The service
+      the toolkit's `research.json` template pointed at appears to be discontinued.
+
+    `.mcp.json` now holds the four that are actually confirmed working:
+    `filesystem`, `github`, `memory`, `serena`.
+11. **The `autosearch` MCP entry was broken and has been removed.** `autosearch-ai`'s installer
    (npx step, §5) auto-registers a project-scoped MCP server via `~/.claude.json`, separate from
    this repo's `.mcp.json`. It failed to connect: its own dependency resolution pulled in a package
    named `mcp` at version `2.0.0` with no `fastmcp` submodule — inconsistent with the real MCP
