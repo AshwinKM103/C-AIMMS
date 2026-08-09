@@ -2,33 +2,54 @@
   "mcpServers": {
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/durgesh/aditya/C-AIMMS"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/durgesh/aditya/C-AIMMS"
+      ],
       "description": "Read/write project files, datasets, and experiment records."
     },
     "github": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}" },
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
       "description": "Issues, PRs, branches, releases. Needs a PAT with repo scope, exported in your shell."
     },
     "memory": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
       "description": "Knowledge graph for research findings and entity relationships across sessions."
     },
     "fetch": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ],
       "description": "Fetch papers, docs, and dataset pages as markdown."
     },
     "sqlite": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sqlite", "/mnt/ssd/users/durgesh/analysis.db"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sqlite",
+        "/mnt/ssd/users/durgesh/analysis.db"
+      ],
       "description": "Ad-hoc analysis over experiment results. Note: NOT the LightMem memory store - that is Qdrant."
     },
     "jupyter": {
       "command": "uvx",
-      "args": ["mcp-jupyter"],
+      "args": [
+        "mcp-jupyter"
+      ],
       "description": "Drive LightMem/tutorial-notebooks - create, edit, execute cells, inspect outputs."
     },
     "bgpt": {
@@ -38,7 +59,13 @@
     },
     "serena": {
       "command": "serena",
-      "args": ["start-mcp-server", "--context", "ide-assistant", "--project", "/home/durgesh/aditya/C-AIMMS/LightMem"],
+      "args": [
+        "start-mcp-server",
+        "--context",
+        "claude-code",
+        "--project",
+        "/home/durgesh/aditya/C-AIMMS/LightMem"
+      ],
       "description": "LSP-backed symbol search and safe symbol-level edits (rename/move/inline) across Python. Install: uv tool install -p 3.13 serena-agent"
     }
   }

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Wrapper: this is prism-cc (PRISM session intelligence), kept in its own
+# venv - see setup/bin/prism-scanner for why they cannot share one.
+exec /home/durgesh/.venvs/cc-tools/bin/prism "$@"

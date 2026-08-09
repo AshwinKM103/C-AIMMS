@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Wrapper: prism-scanner lives in its own venv because its `prism` package
+# collides with prism-cc's (both PyPI projects use the top-level module name
+# `prism`, with different CLI entry points at prism.cli:main vs prism.cli:app).
+exec /home/durgesh/.venvs/prism-scanner/bin/prism "$@"

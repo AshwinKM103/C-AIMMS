@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec /home/durgesh/.venvs/cc-tools/bin/cc-cost "$@"
