@@ -1,0 +1,47 @@
+# ADASTORE default configuration (fluxmem.config.AdaStoreConfig).
+#
+# utility_weights and promotion thresholds are the two genuinely
+# load-bearing modeling choices in this package (see fluxmem/mtem.py and
+# fluxmem/ltsm.py module docstrings) -- their values here are placeholders,
+# not paper-derived, and should be recorded alongside any experiment result
+# (`.claude/rules/evidence-discipline.md`: a retrieval/promotion metric is
+# not reproducible without the weights and thresholds that produced it).
+#
+# No tau_c: the FluxMem Eq. 6 confidence gate is not implemented (see
+# fluxmem/ltsm.py). Do not add it here -- absent beats dead.
+
+stim:
+  capacity: 4
+
+mtem:
+  capacity: 2000
+  reference_length: 50.0
+  half_life: 100.0
+
+utility_weights:
+  w1: 0.4 # access_frequency
+  w2: 0.3 # interaction_intensity
+  w3: 0.3 # recency_decay
+
+promotion:
+  tau_u: 0.5
+  tau_r: 0.3
+  max_age: 500.0
+
+fusion:
+  tau: 0.7
+  m_min: 1
+  em_iters: 50
+  eps: 0.001
+
+selector:
+  hidden_dim: 16
+  learning_rate: 0.01
+  max_epochs: 200
+  batch_size: 16
+  patience: 10
+  seed: 0
+
+reward:
+  lambda_judge: 0.7
+  lambda_mem: 0.3

@@ -13,6 +13,9 @@ tuning, not for hedging.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import yaml
 from pydantic import BaseModel, Field
 
 
@@ -79,3 +82,47 @@ class FusionConfig(BaseModel):
     m_min: int = Field(default=1, ge=0, description="min-keep top-k fallback")
     em_iters: int = Field(default=50, ge=1, description="BMM EM iterations")
     eps: float = Field(default=1e-3, gt=0.0, lt=0.5, description="Eq. 17 min-max inset")
+
+
+class StimConfig(BaseModel):
+    """`fluxmem.stim.ShortTermInteractionMemory` capacity (COLM Sec 1.3.2: capacity 4)."""
+
+    capacity: int = Field(default=4, ge=0)
+
+
+class MtemConfig(BaseModel):
+    """`fluxmem.mtem.MidTermEpisodicMemory` capacity and Eq. 5 term scales."""
+
+    capacity: int = Field(default=2000, ge=1, description="FluxMem: up to 2000 units")
+    reference_length: float = Field(default=50.0, gt=0.0, description="l(e_j) token-count scale")
+    half_life: float = Field(default=100.0, gt=0.0, description="d(e_j) exponential half-life")
+
+
+class AdaStoreConfig(BaseModel):
+    """Full ADASTORE configuration: the assembly of every sub-config above.
+
+    `utility_weights` and `promotion` have no defaults -- they are the two
+    genuinely load-bearing modeling choices (Step 3 and Step 8's module
+    docstrings), so a config file must state them explicitly rather than
+    silently inherit a placeholder.
+    """
+
+    stim: StimConfig = Field(default_factory=StimConfig)
+    mtem: MtemConfig = Field(default_factory=MtemConfig)
+    utility_weights: UtilityWeights
+    promotion: PromotionThresholds
+    fusion: FusionConfig = Field(default_factory=FusionConfig)
+    selector: SelectorConfig = Field(default_factory=SelectorConfig)
+    reward: RewardConfig = Field(default_factory=RewardConfig)
+
+
+def load_config(path: str | Path) -> AdaStoreConfig:
+    """Loads and validates `AdaStoreConfig` from a YAML file (e.g. `configs/default.yaml`).
+
+    Validation happens at this boundary (`.claude/rules/security.md`): a
+    malformed or incomplete config fails here, with pydantic's error, not
+    deep inside whichever module first reads a missing/invalid field.
+    """
+    with Path(path).open("r") as f:
+        raw = yaml.safe_load(f)
+    return AdaStoreConfig(**raw)
