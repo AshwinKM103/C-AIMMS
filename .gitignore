@@ -23,6 +23,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
 
 # OS / editor
 .DS_Store
