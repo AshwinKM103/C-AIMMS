@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash -c 'source ~/.bashrc; echo \"in project: CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR\"; cd /tmp && echo \"outside: CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-<unset>}\"')",
+      "Bash(claude mcp *)",
+      "Bash(claude plugin *)",
+      "Bash(command -v bun)",
+      "Bash(bun --version)",
+      "Bash(command -v serena)",
+      "Bash(serena --version)",
+      "Read(//home/durgesh/.venvs/**)",
+      "Bash(node .claude/hooks/scripts/secret-scanner.js)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(node .claude/hooks/scripts/commit-guard.js)",
+      "Bash(node .claude/hooks/scripts/pre-push-check.js)",
+      "Read(//home/durgesh/.claude/plugins/cache/thedotmack/claude-mem/13.14.0/**)",
+      "Bash(sqlite3 *)",
+      "Bash(codegraph --help)",
+      "Bash(codegraph explore *)",
+      "Bash(codegraph query *)",
+      "Bash(grep -rln \"LightMemCore\\\\|lightmem_core\\\\|from lightmem import\\\\|import lightmem$\" src/fluxmem src/em2mem)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "filesystem",
+    "github",
+    "memory",
+    "fetch",
+    "sqlite",
+    "jupyter",
+    "bgpt",
+    "serena"
+  ]
+}

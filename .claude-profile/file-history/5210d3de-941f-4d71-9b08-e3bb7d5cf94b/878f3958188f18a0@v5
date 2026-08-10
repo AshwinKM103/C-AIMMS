@@ -1,0 +1,83 @@
+# C-AIMMS Implementation Kickoff — Optimized Prompt
+
+## Prompt
+
+You are implementing the methodology and main experiments (excluding ablations) of `docs/COLM_Cognitive_AI_Memory_Architecture_Project.pdf` ("C-AIMMS") as new code in this repo. `LightMem/` is a confirmed-wrong download — do not read it, import from it, or let its structure/conventions bias any decision here; treat it as if it doesn't exist.
+
+### What this is not
+
+Do not replicate `docs/Choosing How to Remember Adaptive Memory Structures for LLM Agents.pdf` line by line. That paper's headline contribution is a taxonomy of three competing memory *structures* — Linear Memory (chronological order, semantic-similarity retrieval enhanced by recency), Graph Memory (relational nodes/edges, neighborhood expansion + semantic matching for multi-hop reasoning), Hierarchical Memory (multi-level topic clusters, coarse-to-fine retrieval) — selected at the system level. C-AIMMS is architecturally different: it borrows only two narrow ideas from that paper —
+
+1. the "three tiers with different granularity and lifetime" framing, which C-AIMMS repurposes as STIM/MTEM/LTSM (§1.3.2) organizing *storage units*, not competing structures; and
+2. the interaction-level feature classes and the BMM-gated fusion mechanism (§1.3.3), reused as-is for C-AIMMS's format selector.
+
+Everything else in C-AIMMS's actual storage design — HETREP's three per-episode *representations* (hypergraph / visual canvas / vector store, §1.2) — comes from two different external papers, HyperMem (arXiv:2604.08256) and MemOCR (arXiv:2601.21468), neither of which has any code in this repo. Do not substitute the Linear/Graph/ Hierarchical taxonomy for HG/VC/VS out of convenience — they are not interchangeable; confirm this distinction is understood before writing HETREP code.
+
+### Full scope (excluding ablations)
+
+- **HETREP** (§1.2): hypergraph encoding (topic/episode/fact nodes, hyperedges, BM25 + dense lexical-semantic indexing, embedding propagation Eq. 3 — per HyperMem), visual canvas encoding (structured rich-text draft, adaptive-density rendering — per MemOCR), vector store encoding (frozen sentence encoder, hybrid BM25+dense retrieval).
+- **ADASTORE** (§1.3): surprise-based episodic segmentation (Eq. 4, Bayesian surprise over backbone log-probs + graph-theoretic boundary refinement), the STIM/MTEM/LTSM hierarchy with utility score `U(e_j)` (Eq. 5) and promotion gate, the format-adaptive selector (feature vector, offline reward supervision, two-layer MLP, Eq. 6), and BMM-gated memory fusion (Eq. 7, EM-estimated Beta Mixture Model).
+- **ITERRET** (§1.4): closed-loop retrieve/reflect/answer controller (LangGraph-style), rubric-guided experience bank, active Cue-Tag-Content hypergraph traversal/pruning.
+- **WORKMEM** (§1.5): online state of associative memory (OSAM, Eq. 8–9, gated delta-rule update), low-rank attention steering (Eq. 10) into the frozen backbone.
+- **End-to-end pipeline** (Algorithm 1): write phase (segment → encode → select format → BMM-fuse → promote) and read phase (retrieve/reflect loop → OSAM population → generate → experience-bank update), evaluated on LoCoMo with a frozen Qwen3-4B-Instruct backbone (§2): single-hop, multi-hop, temporal, open-domain, adversarial question categories.
+
+No ablation variants (single-format-only runs, component-disabled baselines) — that is separate, later work.
+
+### Six external papers, zero of them implemented here
+
+HyperMem, MemOCR, δ-mem, MemR³, R²-Mem, and MRAgent (the CTC-traversal source) are each cited for one specific mechanism and none exist as code anywhere in this repo or in `LightMem/`. Before implementing the component that depends on each, ground it: pull the actual paper (`academic-researcher` agent, or `WebFetch`/`deep-dive` skill for the arXiv ones) rather than inferring the mechanism from the one paragraph the COLM draft summarizes it in. Per `.claude/rules/evidence-discipline.md`: state two concrete interpretations of an underspecified mechanism before building either, and say explicitly when you're pattern-matching from a nearby known technique versus confirming from the source paper. Treat each external paper's grounding as a closed research step (a written summary of what you're building against, with the source cited) before it becomes an implementation step — that boundary is the ADR trigger (`/adr`) if the interpretation is non-obvious or costly to reverse.
+
+### Where this code lives
+
+Not yet decided, and must not default to `LightMem/`. Use `Plan` / `/plan` as the first step to propose a location (e.g. a new top-level package in this repo) and confirm before any file is written.
+
+### Tool routing
+
+Read `CLAUDE.md`'s routing table and `docs/component-index.md` before improvising — below is what applies to this task specifically, organized by phase.
+
+**Grounding phase** (before any component's code is written):
+
+- `academic-researcher` agent + `deep-dive` skill — pull and summarize HyperMem, MemOCR, δ-mem, MemR³, R²-Mem, MRAgent from their sources.
+- `knowledge-synthesizer` agent — reconcile the six papers' mechanisms against how the COLM draft actually wires them together, since the draft's per-paper summaries are terse and the integration details are not fully spelled out.
+- MCP `memory` server — persist research findings on each of the six papers across sessions as a knowledge graph, since this grounding phase will span more than one session.
+- `context-manager` agent if the six-paper grounding pass starts crowding out room for the implementation work in the same session — progressive loading / compaction.
+
+**Planning phase**:
+
+- `Plan` agent / `/plan` for the code-location decision and a dependency-ordered build plan across HETREP → ADASTORE → ITERRET → WORKMEM (HETREP must exist before ADASTORE can store into it; ADASTORE's tiers before ITERRET can query them; WORKMEM only consumes an evidence set and can be built/tested in isolation — consider it a low-risk starting point).
+- `/adr` for any non-obvious, hard-to-reverse interpretation decision surfaced during grounding (e.g. hypergraph library choice, whether the visual-canvas renderer/VLM reader is real or stubbed for this pass).
+
+**Build phase**, per component:
+
+- HETREP hypergraph → `vector-database-engineer` (embedding propagation, hybrid BM25+dense indexing over hypergraph nodes).
+- HETREP visual canvas → `ai-engineer` (LLM-drafted structured rich-text, adaptive rendering pipeline).
+- HETREP vector store → `vector-database-engineer` again (frozen sentence encoder, hybrid retrieval).
+- ADASTORE segmentation + hierarchy → `python-engineer` (surprise computation, LRU buffer, tier plumbing).
+- ADASTORE selector + BMM gate → `ml-engineer` (MLP training, offline reward labeling) and `data-scientist` (Beta-Mixture EM estimator specifically — a statistical fitting problem, not a generic training loop).
+- ITERRET controller + experience bank → `llm-architect` (router/reflector design) with `prompt-engineering` skill for the router/reflector/rubric-evaluator prompts specifically, since correctness there is prompt quality, not just code.
+- ITERRET CTC traversal → `python-engineer`, grounded against MRAgent per the grounding phase above.
+- WORKMEM OSAM + attention steering → `python-engineer` (the delta-rule update and low-rank projections are mechanically specified, Eq. 8–10 — implement to spec).
+- All Python code → `python-best-practices` skill; all tests → `test-architect` agent + `tdd-mastery` skill, test-first or test-immediately-after per component, mocking at interface boundaries (`.claude/rules/testing.md`) — never mock the unit under test.
+- Navigation: `codegraph explore`/serena per `.claude/rules/code-navigation.md` for any "does this already exist" question — not grep. `codegraph sync` after each component lands; full `codegraph index` once the package's top-level structure is stable.
+- Anything touching FAISS or a hybrid retriever: `.claude/rules/storage-invariants.md` — record `dense_weight`/`bm25_weight` in every experiment record.
+
+**Experiment phase**:
+
+- `docs/workflows/new-experiment.md` + `experiment-discipline` skill for the LoCoMo harness structure; `/track` to log every run's params/metrics/artifacts.
+- `benchmarking-specialist` agent for measurement methodology; `/compare` and `/evaluate-model` once multiple runs exist.
+- Inspect an actual LoCoMo sample before writing the loader — verify schema, don't assume it from the paper description (`.claude/rules/evidence-discipline.md`).
+
+**Close-out, every component**:
+
+- `/verify` before declaring done — paste actual test output, not a summary.
+- `/logic-review` (logic-lens plugin) before commit, for anything with nontrivial control flow — the closed-loop controller and the BMM merge-decision logic are the two most likely spots for a logic bug that tests miss.
+- `/commit` with conventional-commit messages, one commit per component.
+- `documentation-engineer` agent / `/doc-gen` for docstrings and any README once a component's public interface stabilizes — not upfront, since interfaces will shift during the grounding+build passes.
+- `/checkpoint` at session end; `task-observer`-style pattern capture is handled automatically by the installed `claude-mem` plugin here — no manual invocation needed.
+- `claude-code-setup`'s automation-recommender skill is worth a pass once the new package's shape is stable, to check whether a project-specific hook or command would now pay for itself (e.g. a pre-commit check specific to the new module) — it only suggests, doesn't apply anything itself.
+
+Plugins already active and requiring no manual invocation: `claude-mem` (cross-session memory), `headroom` (token-compression proxy, already routed for this project). `notify`is available if you want a desktop ping when a long grounding/build/experiment pass finishes.
+
+### Definition of done
+
+Code location confirmed via `/plan` before implementation. Each of HETREP, ADASTORE, ITERRET, WORKMEM has passing tests against fakes/stubs at its interface boundaries, output pasted not summarized. Each of the six external papers has a written grounding summary (source cited) before its dependent component was built, with ADRs for any non-obvious interpretation. A full write-phase → read-phase pipeline runs end-to-end on a small LoCoMo sample. At least one full LoCoMo main-experiment run is logged via `/track`with retrieval weights recorded. `codegraph sync` has run. No file in `LightMem/` was read, imported, or relied on. Report what was verified versus assumed at each step, per `.claude/rules/evidence-discipline.md`.

@@ -1,0 +1,151 @@
+# C-AIMMS Implementation Kickoff — Optimized Prompt
+
+Optimized via the `prompt-engineering` skill on 2026-08-09, from a raw request to
+implement the C-AIMMS COLM paper's methodology and main experiments. Use this as the
+opening prompt for the implementation session; do not hand-edit it back toward the raw
+version — file a new one here if the scope changes.
+
+---
+
+## Prompt
+
+You are implementing the methodology and main experiments (excluding ablations) of the
+COLM submission `docs/COLM_Cognitive_AI_Memory_Architecture_Project.pdf` ("C-AIMMS")
+inside `LightMem/` — its own git repo, forked from zjunlp/LightMem, commit there not in
+the outer repo. This is new code, not a port: no module in this repo currently implements
+any part of C-AIMMS's HETREP, ADASTORE, ITERRET, or WORKMEM components, and none of
+their five source papers (HyperMem, MemOCR, δ-mem, MemR³, R²-Mem/MRAgent) exist as code
+here either. FluxMem (`LightMem/src/fluxmem/`) is the only prior art in the repo and is
+architecturally related but distinct — reuse its interaction-level feature classes
+(`config.py`, `retrieval/`) and its BM25+dense fusion pattern where the paper says C-AIMMS
+extends them (§1.3.3, §1.2.3), but do not assume anything else transfers without checking.
+
+### Scope boundary — read this before writing any code
+
+Do **not** implement Linear Memory / Graph Memory / Hierarchical Memory (the taxonomy
+from `docs/Choosing How to Remember Adaptive Memory Structures for LLM Agents.pdf`).
+That paper is cited inside the COLM proposal only as the source of two narrow borrowed
+ideas — the "three tiers with different granularity/lifetime" framing (→ STIM/MTEM/LTSM,
+§1.3.2) and the interaction-level feature classes + BMM-gated fusion (§1.3.3) — not as an
+architecture to replicate. C-AIMMS's actual storage units are three _representation
+formats_ per episode (hypergraph / visual canvas / vector store, §1.2), selected
+adaptively per episode by a learned selector, not three competing memory _structures_
+selected at the system level. Keep this distinction explicit in code comments only where
+it would otherwise mislead a reader (e.g. a docstring on the tier classes), not throughout.
+
+### What "excluding ablations" means here
+
+Implement: HETREP (hypergraph/visual-canvas/vector-store encoding, §1.2), ADASTORE
+(surprise-based segmentation, three-tier hierarchy, format-adaptive selector, BMM fusion
+gate, §1.3), ITERRET (closed-loop retrieval controller, experience bank, CTC hypergraph
+traversal, §1.4), WORKMEM (OSAM δ-mem state, low-rank attention steering, §1.5), and the
+end-to-end inference pipeline (Algorithm 1) evaluated on LoCoMo with a Qwen3-4B-Instruct
+backbone (§2). Do not build ablation variants (e.g. single-format-only runs, selector-off
+baselines) — those are a later, separate task.
+
+### Before writing code that depends on paper-described components
+
+Two of the five borrowed techniques are the highest-uncertainty parts of this task
+because they have no reference implementation anywhere in the ecosystem you can check
+against: HyperMem's hypergraph embedding propagation (Eq. 3) and MemOCR's visual-canvas
+rendering pipeline (§1.2.2, depends on a renderer + a VLM reader that doesn't exist in
+this repo's dependency footprint — check `LightMem/pyproject.toml` before assuming one).
+Per `.claude/rules/evidence-discipline.md`: before implementing each of HETREP's three
+encoders, form two hypotheses about how the paper intends it to interface with the
+existing FluxMem retrieval stack, state which one you're building against, and flag it
+explicitly if you're pattern-matching from FluxMem rather than confirming from the paper
+text. Treat scoping each of the four components (HETREP/ADASTORE/ITERRET/WORKMEM) as a
+research step that should close with a short written decision — not silently become
+implementation — before code for that component starts; if a scoping decision is
+non-obvious or hard to reverse (e.g. hypergraph library choice, whether VC rendering runs
+locally or is stubbed), write it as an ADR (`/adr`) rather than deciding it inline.
+
+### Tool routing — use these, in this order
+
+1. **Plan first.** Use the `Plan` agent or `/plan` to turn the four components into a
+   dependency-ordered implementation plan before touching files. HETREP must exist before
+   ADASTORE can store into it; ADASTORE's tiers must exist before ITERRET can query them;
+   WORKMEM is the only component that can be built and tested in isolation (it only
+   consumes an evidence set, §1.5) — consider building and testing it first as a
+   low-risk starting point.
+2. **Per-component agents**, matched to `docs/component-index.md`:
+   - HETREP hypergraph encoding → `vector-database-engineer` (embedding propagation,
+     hybrid BM25+dense indexing) jointly with `ai-engineer` (LLM-drafted rich-text for
+     the visual canvas, §1.2.2).
+   - ADASTORE selector + BMM gate → `ml-engineer` (two-layer MLP training, offline reward
+     labeling, §1.3.3) and `python-engineer` for the segmentation/hierarchy plumbing.
+   - ITERRET closed-loop controller + experience bank → `llm-architect` (router design,
+     rubric-scored experience bank) — this is prompt/eval design, not just code; loop in
+     `prompt-engineering` skill for the router/reflector/rubric prompts specifically.
+   - WORKMEM δ-mem state → `python-engineer` for the online associative-memory math
+     (Eq. 8–10); this is the most self-contained and mechanically-specified piece.
+   - Overall Python style/packaging → `python-best-practices` skill throughout.
+3. **Experiment harness.** `LightMem/` currently has _no_ experiment harness (ADR 0001
+   deliberately deferred building one for FluxMem). Follow
+   `docs/workflows/new-experiment.md` and the `experiment-discipline` skill to set one up
+   fresh for C-AIMMS on LoCoMo; use `/track` to log every run's params/metrics/artifacts,
+   `/compare` and `benchmarking-specialist` once multiple runs exist.
+4. **Navigation.** Use `codegraph explore`/`serena` per `.claude/rules/code-navigation.md`
+   for anything that's "where does X already live / what would this collide with" — not
+   grep. Run `codegraph sync` in `LightMem/` after any multi-file addition, and a full
+   `codegraph index` once the new module's top-level package structure is settled.
+5. **Storage.** Any code touching FAISS or the hybrid retriever must follow
+   `.claude/rules/storage-invariants.md` — record `dense_weight`/`bm25_weight` in every
+   experiment record, matching FluxMem's existing `dense_weight`/`bm25_weight` (1.0/0.5)
+   convention in `retrieval/semantic_retriever.py` unless the paper specifies otherwise.
+6. **Close-out.** `/verify` before declaring any component done (evidence-discipline
+   checklist: tests actually run and pasted, not summarized). `/commit` inside `LightMem/`
+   with conventional-commit messages, scoped one component per commit where practical.
+   `/checkpoint` at session end.
+
+### Directory layout
+
+Mirror FluxMem's existing structure in `LightMem/src/fluxmem/` (`config.py`, `agent.py`,
+`graph/`, `interfaces/`, `metrics/`, `retrieval/`, `stages/` — flat, single-responsibility
+modules, no framework scaffolding) rather than inventing a new layout. Concretely, under a
+new `LightMem/src/caimms/` package:
+
+```
+src/caimms/
+  config.py              # C-AIMMS-specific config (extends/wraps fluxmem.config where shared)
+  hetrep/                # hypergraph.py, visual_canvas.py, vector_store.py, selector.py
+  adastore/              # segmentation.py, hierarchy.py (STIM/MTEM/LTSM), bmm_gate.py
+  iterret/                # controller.py, experience_bank.py, ctc_traversal.py
+  workmem/                # osam.py, attention_steering.py
+  interfaces/             # reuse fluxmem.interfaces where the contract matches; extend, don't fork
+  metrics/                # eval metrics beyond fluxmem's PEMS if LoCoMo scoring needs them
+configs/
+  caimms/                 # yaml configs per experiment (backbone, hyperparams from the paper's equations)
+scripts/
+  caimms/                 # thin CLI entrypoints; logic stays in src/, scripts stay thin
+experiments/
+  caimms/                 # run outputs + records per docs/workflows/new-experiment.md
+tests/
+  caimms/                 # mirrors src/caimms/ structure per .claude/rules/testing.md
+```
+
+Every public function/class gets a docstring (params, returns, the paper equation/section
+it implements where non-obvious — not a restatement of the code). Follow
+`.claude/rules/coding-style.md` and `naming.md`. No comments explaining _what_ the code
+does; only _why_, and only where non-obvious (e.g. why a hyperparameter's default matches
+a specific equation's symbol from the paper).
+
+### Explicit non-goals for this task
+
+- No Linear/Graph/Hierarchical Memory implementation (see scope boundary above).
+- No ablation variants.
+- No changes to FluxMem's existing modules beyond what §1.3.3/§1.2.3 explicitly say
+  C-AIMMS extends — if you find yourself editing `fluxmem/retrieval/` or
+  `fluxmem/stages/` for reasons the paper doesn't call out, stop and confirm scope first.
+- No outer-repo (`C-AIMMS/`) commits for this work — it all lands in `LightMem/`'s own
+  git history.
+
+### Definition of done for this pass
+
+A working write-phase → read-phase pipeline (Algorithm 1) runnable end-to-end on a small
+LoCoMo sample, with each of the four components independently testable, docstrings on all
+public interfaces, an experiment record for at least one full run via `/track`, and one or
+more ADRs capturing any non-obvious scoping decisions made along the way (hypergraph
+library choice, whether the visual canvas renderer/VLM reader is real or stubbed for this
+pass, etc.). Report what was verified (tests run, output pasted) versus assumed, per
+`.claude/rules/evidence-discipline.md`.

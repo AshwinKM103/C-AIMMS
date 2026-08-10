@@ -1,0 +1,152 @@
+# FluxMem Implementation Kickoff — Optimized Prompt
+
+Optimized via the `prompt-engineering` skill on 2026-08-09. Rescoped twice the same day
+at the user's request: first narrowed from the full C-AIMMS paper down to FluxMem only,
+then narrowed again to treat `LightMem/` as effectively an **empty repo** — the existing
+`src/fluxmem/` code (~3,400 lines) is not to be trusted or extended, only skimmed for
+ideas. File a new version here if scope changes again rather than editing this one back
+and forth.
+
+---
+
+## Prompt
+
+You are implementing **FluxMem** — the connectivity-evolving memory framework specified
+in `LightMem/FluxMem.md` — from scratch, inside `LightMem/`, its own git repo (commit
+there, not in the outer repo). Treat the repository as if `src/fluxmem/` did not exist:
+do not import from it, do not assume any class, method signature, or piece of logic in it
+is correct, and do not build tests around it as ground truth. It was written without
+verification and you have no reason to trust it. You may open it to see what ideas were
+attempted — a class name, a retrieval-fusion formula, a stage boundary — but every such
+idea must be re-derived from `FluxMem.md` (the spec) or re-justified from first
+principles before it goes into new code. If something in the old code matches the spec
+and is worth keeping structurally, say so explicitly and re-implement it deliberately —
+don't silently port it.
+
+### What FluxMem is (ground truth: `FluxMem.md`)
+
+- **Heterogeneous three-layer memory graph**: `SemanticNode` (factual chunks +
+  embeddings), `EpisodicNode` (observation-action trajectories), `ProceduralNode`
+  (distilled reusable skills), connected by typed edges — `GroundEdge`
+  (Semantic→Episodic), `DistillEdge` (Episodic→Procedural), `StepLinkEdge`
+  (any→any, transient per-step links).
+- **Three-stage pipeline**: Stage I initial connection formation (online, per step —
+  retrieve relevant semantic/episodic/procedural memories, build a `StepLinkEdge`
+  subgraph); Stage II feedback-driven refinement (online, per step — on task failure,
+  attribute the cause, expand/prune/reshape the graph); Stage III long-term
+  consolidation (offline, periodic — cluster episodic trajectories, distill procedural
+  skills, iterate until PEMS convergence).
+- **PEMS**: the convergence metric for Stage III; skills are re-distilled and refined
+  until PEMS stabilizes within `pems_threshold` (spec default `0.01`), not for a fixed
+  iteration count.
+- **Pluggable backends**: abstract `BaseLLM`, `BaseEmbedder`, `BaseVectorStore` so the
+  graph/pipeline/metric never depend on a specific model or store.
+- **Retrieval**: hybrid dense + BM25 fusion, weighted (`dense_weight`/`bm25_weight`,
+  spec defaults `1.0`/`0.5`).
+
+### Before writing any code
+
+Per `.claude/rules/evidence-discipline.md`: this is a from-spec implementation, so treat
+each component's design as a hypothesis to validate, not a foreseeable given. Before
+Stage II's failure-attribution logic or Stage III's clustering/distillation loop in
+particular — the two most underspecified parts of `FluxMem.md` — write down two concrete
+interpretations of what the spec means and state which you're building, rather than
+picking one silently. Load or synthesize a tiny fixture trajectory before writing the
+graph/stage code that consumes it, so field shapes (what an `EpisodicNode`'s
+observation-action pair actually contains, what a "feedback" object looks like) are
+checked against something concrete, not assumed.
+
+### Build order (dependency-ordered)
+
+1. **Interfaces first** (`interfaces/`): `BaseLLM`, `BaseEmbedder`, `BaseVectorStore` as
+   abstract contracts, plus test fakes for each — everything downstream is testable
+   against fakes from the start, no live API dependency for the test suite.
+2. **Graph layer** (`graph/`): node types, edge types, the graph container/operations
+   (add node, add edge, query by type, subgraph extraction). This is the shared
+   substrate every stage writes to and reads from — get its API right before Stage I.
+3. **Retrieval** (`retrieval/`): dense + BM25 hybrid fusion over the graph's semantic/
+   episodic/procedural nodes, weighted per `FluxMemConfig`.
+4. **Stage I** (initial connection formation) — depends on graph + retrieval.
+5. **Stage II** (feedback-driven refinement) — depends on Stage I's subgraph output.
+6. **Metrics** (`metrics/`): PEMS, needed before Stage III since it's the convergence
+   signal, not a post-hoc measurement.
+7. **Stage III** (long-term consolidation) — depends on the graph, PEMS, and enough
+   accumulated episodic nodes to cluster.
+8. **Agent** (`agent.py`): `FluxMemAgent` orchestrating `add_knowledge` / `run_task`
+   (Stage I + II) / `consolidate` (Stage III) — thin composition layer, built last since
+   it depends on everything else.
+9. **Config** (`config.py`): `FluxMemConfig` — build incrementally alongside whichever
+   stage needs its next field, not all upfront as a guess.
+
+Write each layer test-first or test-immediately-after (`tdd-mastery` skill / `/tdd`):
+a component isn't done until its tests pass against fakes, per
+`.claude/rules/testing.md` (mock at boundaries — LLM/embedder/vectorstore — never mock
+the unit under test).
+
+### Directory layout
+
+```
+src/fluxmem/
+  config.py
+  agent.py
+  graph/            # nodes.py, edges.py, memory_graph.py
+  interfaces/        # llm.py, embedder.py, vectorstore.py (+ fakes for tests)
+  retrieval/          # base.py, semantic_retriever.py, episodic_retriever.py, procedural_retriever.py
+  stages/             # stage1_formation.py, stage2_refinement.py, stage3_consolidation.py
+  metrics/            # pems.py
+tests/                # mirrors src/fluxmem/ 1:1
+examples/             # one end-to-end runnable script against a fixture, no live API required
+configs/fluxmem/       # yaml configs (FluxMemConfig fields, backbone/model choice)
+scripts/fluxmem/       # thin CLI entrypoints; logic stays in src/
+experiments/fluxmem/   # LoCoMo main-experiment runs (see below), one dir per run
+```
+
+Every public function/class gets a docstring (params, returns, which part of the spec it
+implements where non-obvious). `.claude/rules/coding-style.md` / `naming.md` apply. No
+comments explaining *what* code does — only *why*, and only where non-obvious.
+
+### Experiments
+
+Main experiment only: LoCoMo (single-hop, multi-hop, temporal, open-domain, adversarial
+categories), no ablations. Follow `docs/workflows/new-experiment.md` and the
+`experiment-discipline` skill; log every run via `/track`, including `dense_weight`/
+`bm25_weight` per `.claude/rules/storage-invariants.md`. Inspect an actual LoCoMo sample
+before writing the loader — don't assume its schema from the paper description.
+
+### Tool routing
+
+- `Plan` agent / `/plan` first, against the build order above, before writing files.
+- `python-engineer` + `python-best-practices` skill for all core module code.
+- `test-architect` + `tdd-mastery` for the fake-backed test suite, built alongside each
+  layer, not after.
+- `vector-database-engineer` for the hybrid dense+BM25 retrieval layer specifically.
+- `benchmarking-specialist` for the LoCoMo harness; `/compare` once multiple runs exist.
+- `codegraph explore`/serena per `.claude/rules/code-navigation.md` for "does this already
+  exist" questions — not grep, and not a re-read of the old `src/fluxmem/` as if it were
+  authoritative. Run `codegraph sync` after each layer lands, full `codegraph index`
+  once the package structure is stable.
+- Storage: `.claude/rules/storage-invariants.md` for anything touching the retriever.
+- `LightMem/CLAUDE.md`: **Codex reviews everything committed here** — no half-finished
+  layers, no unexplained TODOs, explain non-obvious decisions in commit messages. Invoke
+  the `task-observer` skill explicitly at session start (auto-trigger isn't reliable per
+  that file). Conda env: `conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem`.
+- `/verify` before declaring any layer done — paste actual test output. `/commit` with
+  conventional-commit messages, one commit per layer in the build order above, not one
+  giant commit at the end.
+
+### Non-goals
+
+- No reuse of existing `src/fluxmem/` code as a dependency or test target — ideas only,
+  re-verified against spec.
+- No C-AIMMS / HETREP / ADASTORE / ITERRET / WORKMEM work — separate, out of scope.
+- No ablation runs.
+- No outer-repo (`C-AIMMS/`) commits — everything lands in `LightMem/`'s own history.
+
+### Definition of done
+
+Every layer in the build order has passing tests against fakes (`pytest` in the
+`lightmem` conda env, output pasted not summarized); the example script runs end-to-end
+against a fixture with no live credentials; at least one full LoCoMo main-experiment run
+is logged via `/track` with retrieval weights recorded; `codegraph sync` has run;
+everything committed in `LightMem/` with conventional commits, one per layer. Report what
+was verified versus assumed at each step, per `.claude/rules/evidence-discipline.md`.

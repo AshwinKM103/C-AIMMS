@@ -1,0 +1,335 @@
+# ADASTORE: three-tier hierarchy, format-adaptive selector, BMM-gated fusion
+
+## Context
+
+`docs/COLM_Cognitive_AI_Memory_Architecture_Project.pdf` describes C-AIMMS, a four-component
+memory framework (HETREP → ADASTORE → ITERRET → WORKMEM). None of it is implemented in this
+repo: outside `LightMem/` (a separate, gitignored git repo — a confirmed-wrong download) and the
+vendor toolkit clone, there is **zero Python** at the C-AIMMS root (verified: `find . -name
+"*.py"` excluding those two trees returns nothing; no root `pyproject.toml`, no `tests/`).
+
+This plan implements exactly two paragraphs of that paper — **§1.3.2** (three-tier memory
+hierarchy) and **§1.3.3** (format-adaptive selector, offline supervision, BMM-gated fusion) — as
+a new top-level `fluxmem/` package. The intended outcome is a tested, self-contained ADASTORE
+that a later HETREP/ITERRET effort can plug into, without touching or importing `LightMem/`.
+
+### The research finding that reshapes this plan
+
+The kickoff framing treated the per-format reward `r^HG, r^VC, r^VS` as the single highest-risk
+ambiguity, because COLM §1.3.3 only says "evaluate the downstream response quality and memory
+utilization effectiveness." **That is under-specified in COLM but specified in its cited source.**
+Reading `docs/Choosing How to Remember Adaptive Memory Structures for LLM Agents.pdf` (Lu et al.,
+2026 — the FluxMem paper COLM cites for both the feature set and the BMM gate) yields:
+
+| Item | Source | Content |
+|---|---|---|
+| Reward form | FluxMem Eq. 9 + App. D Alg. 2 | `r(s) = λ_judge·r_judge(s) + λ_mem·r_mem(s)`, `λ = 0.7 / 0.3`, `y = argmax_s r(s)` |
+| Selector training | FluxMem App. D Alg. 3 | StandardScaler → softmax → cross-entropy → Adam → early stop on validation |
+| Score normalization | FluxMem Eq. 17 | min–max to `(0,1)` with `ε` inset; `x_i ← 0.5` when `s_max = s_min` |
+| BMM EM | FluxMem Eqs. 18–24 | quantile init (`q₀.₃`/`q₀.₇`), **log-space** E-step, responsibility-weighted moment M-step, `κ = μ(1−μ)/σ² − 1` |
+| High-compat component | FluxMem Alg. 1 line 11 | `k* = argmax_k α_k/(α_k+β_k)` (larger Beta mean) |
+| Merge decision | FluxMem Alg. 1 + Eq. 26 | threshold `τ` on posterior, **min-keep `m_min` top-k fallback**, merge into `argmax_{i∈I} x_i` |
+| STIM eviction | FluxMem Eq. 5 | evict the `\|M\|−C` pages minimising `τ(p)` = last access time (true LRU, not FIFO) |
+| LTSM eligibility | FluxMem Eq. 6 | `u(m) ≥ τ_u ∧ r(m) ≥ τ_r (∧ c(m) ≥ τ_c)` — third gate optional |
+
+So the ADR narrows to concretizing `Judge(·)` and `MemUtil(·)` only. Everything else above is
+citable, not invented. **`m_min` (min-keep) does not appear in COLM at all** — it is load-bearing
+in Alg. 1 and would have been silently dropped without reading the source paper.
+
+### Decisions taken (from your answers)
+
+1. **Reward** — anchor on FluxMem Eq. 9 as paper-specified; ADR scopes only `Judge`/`MemUtil`.
+2. **Features** — 7 scalars under the paper's 6 named classes; `d` derived from `FEATURE_NAMES`.
+3. **Vector store** — FAISS-backed from day one (requires installing `faiss-cpu`, currently absent).
+4. **MLP framework — you delegated; I choose PyTorch.** Reasoning: torch 2.8.0+cu128 is already
+   installed, so it is not a *net* new dependency; the rest of C-AIMMS (frozen Qwen3 backbone
+   §1.5, δ-mem OSAM, HETREP encoders) is unavoidably torch, so an sklearn selector would be the
+   one component needing a rewrite at integration time; and an explicit loop makes Eq. 6's
+   cross-entropy literal rather than hidden inside `MLPClassifier`. Cost is slower, seed-sensitive
+   tests — mitigated by a tiny CPU-only net, fixed `torch.manual_seed`, and `torch.use_deterministic_algorithms(True)`.
+   sklearn's `StandardScaler` is still used for Alg. 3 line 1, since the algorithm names it.
+
+---
+
+## Step 0 — Environment and packaging
+
+- `pip install faiss-cpu pytest pytest-cov` into `/mnt/ssd/users/durgesh/conda-envs/lightmem`.
+  **Verified present**: numpy 2.2.6, sklearn 1.7.2, torch 2.8.0+cu128, pydantic 2.12.0, scipy
+  1.15.3, pyyaml 6.0.3, Python 3.11.15. **Verified missing**: `faiss`, `pytest`.
+- New root `pyproject.toml` (none exists). `requires-python = ">=3.10,<3.12"` per CLAUDE.md.
+  Runtime deps pinned exactly per `.claude/rules/dependency-management.md`; `[project.optional-dependencies].dev`
+  gets pytest/pytest-cov/ruff. Add `[tool.ruff]` and `[tool.pytest.ini_options]` here.
+- **Name-collision check**: `LightMem/` is gitignored and is its own repo; it is never on
+  `sys.path` from the C-AIMMS root, so root-level `fluxmem/` cannot shadow or be shadowed by
+  `LightMem/src/fluxmem/`. Guard this with a test asserting `fluxmem.__file__` resolves under the
+  repo root, so a stray `pip install -e LightMem/` can never silently swap the import.
+- Branch from `main` as `feat/adastore-fluxmem` (current branch is a docs branch, and
+  `docs/prompts/caimms-implementation-kickoff.md` has uncommitted edits — commit or stash first).
+- After the package tree exists, run a **full `codegraph index`**, not `sync` — adding a top-level
+  package is structural surgery per `.claude/rules/code-navigation.md`.
+
+## Step 1 — `fluxmem/interfaces.py` + stub producer
+
+The boundary fake everything else is tested against. No dependencies.
+
+- `MemoryFormat(StrEnum)`: `HG`, `VC`, `VS` — opaque labels, no encoders (HETREP is a non-goal).
+- `Turn`: `turn_id`, `user`, `assistant`, `timestamp`, `last_access`.
+- `EpisodicUnit`: `episode_id`, `turns`, `primary_format`, `features`, `embedding`,
+  `access_count`, `last_access`, `created_at`, plus opaque `hyperedge_density` /
+  `visual_salience` carried in from a (not-implemented) HETREP.
+- `VectorStore` Protocol: `add(ids, vectors)`, `search(query, k) -> list[tuple[str, float]]`, `__len__`.
+- `EpisodeProducer` Protocol + `StubEpisodeProducer` — seeded, deterministic, generates episodes
+  with controllable entity counts / topic spread / lengths so feature tests have known ground truth.
+
+**Verify**: `/snapshot-test` on the stub producer output — golden snapshot pins the fake so later
+refactors can't silently change every downstream fixture.
+
+## Step 2 — `fluxmem/stim.py`
+
+`ShortTermInteractionMemory`, capacity 4 (COLM §1.3.2; FluxMem confirms "STIM (capacity 4, LRU)").
+
+- `OrderedDict` + `move_to_end`; `push(turn)`, `touch(turn_id)`, `evicted` returned to the caller
+  rather than pushed to MTEM directly — keeps STIM dependency-free, as the build order requires.
+- **True LRU on last-access time** (FluxMem Eq. 5 minimises `Σ τ(p)`), which degenerates to FIFO
+  when nothing is re-accessed. COLM's phrase "the oldest turn is evicted … via LRU" conflates the
+  two; document that we implement LRU and that it matches COLM whenever no turn is re-accessed.
+
+**Tests**: fills to 4 without eviction; 5th push evicts exactly one; `touch` on the oldest changes
+which turn is evicted (the test that distinguishes LRU from FIFO); eviction order under
+interleaved access; capacity 1 and capacity 0 edges.
+
+## Step 3 — `fluxmem/mtem.py` — utility score `U(e_j)`
+
+`utility_score(episode, weights, now) -> float` as a **pure function**, Eq. 5:
+`U = w₁·c(e) + w₂·ℓ(e) + w₃·d(e)`.
+
+Neither paper defines `c`, `ℓ`, `d` concretely. Each concretization is a **modeling choice,
+docstring-flagged as such**, and each is individually swappable:
+
+| Term | Paper name | Implementation | Range |
+|---|---|---|---|
+| `c(e)` | access frequency | `access_count / (age_in_turns + 1)` | `(0,1]` |
+| `ℓ(e)` | interaction intensity | mean tokens per turn ÷ a config'd reference length, clipped | `[0,1]` |
+| `d(e)` | recency | `exp(-Δt / half_life)` | `(0,1]` |
+
+All three normalized to `[0,1]` so `w₁,w₂,w₃` are comparable — itself a choice, stated in the
+docstring. `MidTermEpisodicMemory` then wraps storage: `add`, `get` (bumps `access_count` and
+`last_access` — the write that makes `c` and `d` move), `merge(target_id, incoming)`,
+`promotion_candidates(...)`, and a capacity cap (FluxMem: up to 2000 units).
+
+**Tests**: each term in isolation with the other two weights zeroed; monotonicity (more accesses ⇒
+higher `U`, more elapsed time ⇒ lower `U`); `w=(0,0,0)` ⇒ 0; `get` mutates access state; the
+capacity cap evicts lowest-`U`.
+
+**Then** `/diagram` the three-tier hierarchy into `docs/diagrams/` (Mermaid, per CLAUDE.md).
+
+## Step 4 — `fluxmem/features.py`
+
+```python
+FEATURE_NAMES = ("entity_count", "cooccurrence_density", "temporal_ordering",
+                 "topic_diversity", "token_length", "hyperedge_density", "visual_salience")
+FEATURE_DIM = len(FEATURE_NAMES)   # 7 — never hardcode the 7
+```
+
+`extract_features(episode) -> FeatureVector`, numpy-backed with `.to_array()`. Extractors, all
+dependency-free (no spaCy — a regex/capitalization heuristic NER, **flagged in the docstring as an
+approximation, not real NER**):
+
+- `entity_count` — distinct heuristic entities, log1p-scaled.
+- `cooccurrence_density` — entity pairs co-occurring within a turn ÷ possible pairs.
+- `temporal_ordering` — fraction of adjacent turn pairs with monotonically increasing timestamps,
+  blended with the rate of explicit temporal markers.
+- `topic_diversity` — distinct-content-token ratio across turns.
+- `token_length` — whitespace token count, log1p-scaled.
+- `hyperedge_density`, `visual_salience` — read straight off the episode as **opaque placeholders**
+  (default `0.0`); the HG/VC encoders that would produce them are explicit non-goals.
+
+**Tests**: known-ground-truth stub episodes (a 1-entity episode vs. a 10-entity one); every
+feature bounded and finite; empty-episode and single-turn edges; `len(vector) == FEATURE_DIM`;
+placeholder passthrough is exact.
+
+## Step 5 — ADR: reward design (**gate — blocks Steps 6–7**)
+
+`/adr` → `docs/adr/0002-format-selector-reward-design.md`, Nygard format, sequential.
+
+- **Given (cited, not decided)**: `r(s) = 0.7·r_judge(s) + 0.3·r_mem(s)`, `y = argmax_s r(s)`
+  (FluxMem Eq. 9, App. D Alg. 2). `λ` stays config-exposed.
+- **Decided**: concrete `Judge(·)` and `MemUtil(·)`. Compare ≥2 candidates each, with tradeoffs:
+  - `r_judge`: (a) exact-match / F1 against a reference answer — cheap, deterministic, testable
+    offline, but brittle on free-form text; (b) LLM-as-judge on a 0–1 rubric — matches the paper's
+    intent and its GPT-4.1/Qwen3 setup, but non-deterministic and requires an API call per
+    (episode × format), i.e. 3× cost.
+  - `r_mem`: (a) retrieval hit-rate (fraction of gold evidence surfaced); (b) hit-rate normalized
+    by retrieved token budget — rewards *efficient* utilization, which is closer to "memory
+    utilization effectiveness," but adds a tokenizer dependency to the reward.
+  - Recommendation to be argued in the ADR, not pre-committed here.
+- **Design for both**: `JudgeReward` and `MemUtilReward` are Protocols with deterministic fakes
+  for tests, so no test ever needs an LLM call.
+- Record which choice was made **and that it is a modeling choice, not a paper-specified fact** —
+  training data downstream of the selector depends on it (`.claude/rules/evidence-discipline.md`).
+
+## Step 6 — `fluxmem/selector.py` + `fluxmem/supervision.py`
+
+> **Deviation from the layout in the kickoff prompt**: splitting the offline reward/labeling
+> pipeline into `supervision.py` instead of folding it into `selector.py`. Rationale: it keeps
+> both files under the 300-line cap (`.claude/rules/coding-style.md`), and it isolates the ADR'd
+> modeling choice from the training mechanics so the reward can be revised without touching the
+> MLP. Easy to veto in review — say so and it collapses back into `selector.py`.
+
+`supervision.py` — FluxMem Alg. 2: `RewardConfig(lambda_judge=0.7, lambda_mem=0.3)`,
+`JudgeReward`/`MemUtilReward` Protocols, `per_format_rewards(episode, runner) -> dict[MemoryFormat, float]`,
+`label_episodes(episodes, runner) -> (X, y)` with `y = argmax_f r_f`. Ties broken deterministically
+by a documented format order.
+
+`selector.py` — FluxMem Alg. 3 / COLM Eq. 6:
+
+- `nn.Sequential(Linear(FEATURE_DIM, hidden), ReLU, Linear(hidden, 3))` — the two-layer MLP.
+- `StandardScaler` fit on train features only (never on validation — a leak the paper's Alg. 3
+  line 1 doesn't spell out).
+- Explicit loop: Adam, `F.cross_entropy` (Eq. 6 literally), minibatches, early stop on validation.
+- `predict(x) -> MemoryFormat` via `argmax softmax` (FluxMem Eq. 8).
+- `save`/`load` persisting scaler + `state_dict` together — loading one without the other yields
+  silently wrong predictions, so they serialize as one artifact.
+
+**Tests**: overfits a tiny separable synthetic set to ~100% train accuracy (the canonical
+"training loop actually works" test); loss decreases monotonically over epochs on that set; early
+stopping fires on a non-improving validation set; save→load round-trips to identical predictions;
+scaler is not fit on validation; seeded runs reproduce exactly. `/track` logs params + metrics per
+`experiment-discipline`.
+
+## Step 7 — `fluxmem/fusion.py` (highest logic risk)
+
+Implements FluxMem Eqs. 17–26 + Alg. 1 verbatim; COLM Eq. 7 is the two-component mixture.
+
+1. `normalize_scores(s, eps)` — Eq. 17, **including** the `s_max == s_min ⇒ x_i = 0.5` branch.
+2. `BetaMixtureModel`:
+   - quantile init: `μ₀ ← q₀.₃`, `μ₁ ← q₀.₇`, fixed small initial variance → `(α,β)` by moment matching;
+   - **log-space** E-step (Eq. 20) via `scipy.stats.beta.logpdf` + `logsumexp` — the paper calls
+     out log-space explicitly for numerical stability near the boundaries;
+   - M-step: `π_k = N_k/n` (Eq. 21); responsibility-weighted `μ_k, σ²_k` (Eq. 22); `κ = μ(1−μ)/σ² − 1`,
+     `α = μκ`, `β = (1−μ)κ` (Eq. 23). **Guard `σ²→0` and `κ ≤ 0`** — both are reachable when one
+     component collapses, and both produce invalid Beta parameters; clamp and document.
+   - `high_compat_component` = `argmax_k α_k/(α_k+β_k)` (Alg. 1 line 11) — **not** hardcoded to
+     index 1. COLM's Eq. 7 writes `π·Beta(α₁,β₁)` as if component 1 is always the high one; the
+     source paper's Alg. 1 says to determine it empirically. We follow Alg. 1.
+   - `posterior(x)` — Eq. 25.
+3. `select_merge_target(incoming, candidates, scorer, cfg) -> MergeDecision` — Alg. 1:
+   `I = {i : g(x_i) ≥ τ}`; **if `|I| < m_min`, `I ← TopK({x_i}, m_min)`** (Eq. 26); if `I` empty →
+   `NEW`; else merge into `argmax_{i∈I} x_i`. Note in the docstring that with `m_min ≥ 1` the
+   `I = ∅` branch is reachable only when the candidate set is empty — an Alg. 1 subtlety that is
+   easy to implement as dead code by accident.
+
+**Tests** (the reason this step is separate): recover `(π, α, β)` within tolerance from data
+sampled off a known two-component Beta mixture at a fixed seed; log-space E-step does not
+underflow at `x → 0⁺/1⁻`; Eq. 17's degenerate branch; `m_min` fallback fires when the threshold
+retains too few; empty candidate set ⇒ `NEW`; single candidate; all-identical scores; component
+labels are order-invariant (a fit that swaps component indices must not change the decision).
+
+**Then**: `/logic-review` on `select_merge_target` and the M-step specifically — the only
+nontrivial control flow in this scope — and `/diagram` the merge logic.
+
+## Step 8 — `fluxmem/ltsm.py` — promotion gate + FAISS store
+
+- `FaissVectorStore(VectorStore)` — `IndexFlatIP` over **L2-normalized** vectors (⇒ inner product
+  = cosine), with an id↔row map since `IndexFlatIP` has no native string ids.
+- `is_eligible(episode, thresholds)` — `U(e) ≥ τ_u ∧ r(e) ≥ τ_r`, plus the optional
+  `c(e) ≥ τ_c` confidence gate from FluxMem Eq. 6, **disabled by default** since COLM omits it.
+- `promote(mtem, ltsm, ...)` — moves eligible episodes, embeds, writes to the store.
+
+**Two symbol ambiguities to document in code, not resolve silently:**
+
+1. COLM writes the first gate as `U(e_j) ≥ τ_u` (the composite utility of Eq. 5); FluxMem Eq. 6
+   writes `u(m) ≥ τ_u` where `u` is *usage* alone. We implement **COLM's literal reading**
+   (composite `U`), and expose `promotion_gate: "utility" | "usage"` in config so the alternative
+   is a one-line flip rather than a rewrite.
+2. `r(e_j)` (the standalone recency gate) and `d(e_j)` (the recency term inside `U`) are both
+   recency. Implement `r` as raw normalized recency and `d` as the decayed term; document that
+   under the "utility" reading recency is counted twice, once softly and once as a hard gate.
+   Separately: COLM's `c(e_j)` = *access frequency* inside `U` is **not** FluxMem's `c(m)` =
+   *confidence* in the optional gate — same letter, different quantity. Name them
+   `access_frequency` and `confidence` so the collision cannot survive into the code.
+
+**Tests**: eligibility truth table across both thresholds; boundary values are `≥`, not `>`; FAISS
+round-trip (add → search returns the same id at score ≈ 1.0); normalization actually applied;
+promotion removes from MTEM and appears in LTSM; empty-store search.
+
+**Note on `.claude/rules/storage-invariants.md`**: it is path-scoped and `configs/` will match it,
+but its `dense_weight`/`bm25_weight` invariant describes FluxMem's hybrid retriever in `LightMem/`.
+This package builds **no** BM25 fusion — retrieval (ITERRET) is an explicit non-goal — so there are
+no fusion weights to record yet. State this explicitly in any experiment record rather than
+leaving a reader to assume the invariant was overlooked.
+
+---
+
+## Files
+
+```
+pyproject.toml               # NEW — repo root has no Python packaging today
+fluxmem/
+  __init__.py  config.py  interfaces.py  stim.py  mtem.py  features.py
+  supervision.py  selector.py  fusion.py  ltsm.py
+tests/                       # mirrors fluxmem/ 1:1, + conftest.py
+configs/default.yaml         # w1/w2/w3, tau_u, tau_r, tau_c, tau, m_min, em_iters, eps, MLP hparams
+scripts/train_selector.py  scripts/run_write_phase.py     # thin CLIs; logic stays in fluxmem/
+docs/adr/0002-format-selector-reward-design.md
+docs/diagrams/adastore-*.md
+```
+
+`config.py` is pydantic v2 (`StimConfig`, `UtilityWeights`, `PromotionThresholds`, `FusionConfig`,
+`SelectorConfig`, `RewardConfig` → `AdaStoreConfig`) + `load_config(path)` over `configs/default.yaml`.
+Validation at the boundary per `.claude/rules/security.md`: weights ≥ 0, `τ ∈ (0,1)`, `m_min ≥ 0`,
+`capacity ≥ 1`. Every public function/class gets a docstring naming the equation/section it
+implements. Comments explain *why* only.
+
+## Per-step discipline
+
+Each of steps 1–8: write tests alongside (`tdd-mastery` / `/tdd`; the stub producer is a boundary
+fake, never the unit under test) → run pytest and **paste output** → `codegraph sync` → `/commit`
+with a conventional message (`feat(fluxmem): …`). `/type-hints` and `/doc-gen` once a module's
+interface stabilizes.
+
+## Verification
+
+```bash
+conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem
+pip install faiss-cpu pytest pytest-cov
+pip install -e ".[dev]"
+
+pytest tests/ -v                                            # per step: pytest tests/test_<mod>.py -v
+pytest tests/ --cov=fluxmem --cov-report=term-missing        # ≥80% line, ≥75% branch
+ruff check fluxmem/ tests/ scripts/
+
+python -c "import fluxmem, pathlib; \
+  assert pathlib.Path(fluxmem.__file__).is_relative_to(pathlib.Path.cwd()), fluxmem.__file__"
+python scripts/train_selector.py --config configs/default.yaml --dry-run
+codegraph index && codegraph explore "fluxmem fusion merge decision"
+```
+
+End-to-end smoke (`scripts/run_write_phase.py`): stub producer → 6 turns into STIM → 2 evicted to
+MTEM → features extracted → selector assigns a format → BMM fusion decides merge-vs-new → one
+episode crosses both promotion thresholds and lands in the FAISS store. Assert the tier counts at
+each stage.
+
+Done criteria: all tests pass with output pasted (not summarized); coverage thresholds met; ADR
+0002 written and approved before Step 6 code; diagrams for hierarchy / feature flow / merge logic;
+`/logic-review` clean on `fusion.py`; `codegraph index` reflects the new package; and a closing
+report separating **verified** from **assumed** per `.claude/rules/evidence-discipline.md`.
+
+## Out of scope — will not be touched
+
+HETREP (HG/VC/VS encoders), ITERRET, WORKMEM/δ-mem, surprise-based segmentation (§1.3.1), the six
+external papers (HyperMem, MemOCR, δ-mem, MemR³, R²-Mem, MRAgent), and **any** file under
+`LightMem/`. Note for the record: the FluxMem *paper* (`docs/Choosing How to Remember….pdf`) is a
+primary source for this scope and was read; the `LightMem/` *directory* was not read and will not be.
+
+## Verified vs. assumed (as of planning)
+
+**Verified** — both PDFs read in full at the cited equations/algorithms; no Python outside
+`LightMem/` and the toolkit clone; no root `pyproject.toml`/`tests/`; package versions and the two
+missing packages checked by importing inside the conda env; `.gitignore` excludes `LightMem/` but
+not a root `fluxmem/`; ADR 0001 read for house format.
+
+**Assumed** — that COLM's ADASTORE is meant to be read through FluxMem's appendices wherever COLM
+is terse (strongly supported: COLM cites Lu et al. for both the feature classes and the BMM gate,
+and the equation forms match); that no teammate is concurrently creating a root `fluxmem/`; that
+`faiss-cpu` installs cleanly on this Python 3.11 env — unverified until Step 0 runs.
