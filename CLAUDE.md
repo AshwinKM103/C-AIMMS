@@ -3,18 +3,18 @@
 Cognitive AI Memory Architecture. Research prototype for memory-augmented LLM agents, on a
 publication track (COLM). Multi-person team; workflow is code → review → merge.
 
-This file is deliberately short. It says what the project *is* and where to go next — depth lives
+This file is deliberately short. It says what the project _is_ and where to go next — depth lives
 in `.claude/rules/` (always-on standards), `docs/workflows/` (read on demand), and `docs/adr/`
 (decisions). Keep it under ~150 lines: it loads in full, every session.
 
 ## Layout
 
-| Path | What |
-|---|---|
-| `LightMem/` | The research codebase. **Its own git repo** (fork of zjunlp/LightMem) — commit there, not here |
-| `docs/` | ADRs, diagrams, workflows, analysis |
-| `.claude/` | Team config: rules, commands, agents, skills, hooks |
-| `awesome-claude-code-toolkit/` | Vendor clone, source of copied components. Not tracked |
+| Path                           | What                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `LightMem/`                    | The research codebase. **Its own git repo** (fork of zjunlp/LightMem) — commit there, not here |
+| `docs/`                        | ADRs, diagrams, workflows, analysis                                                            |
+| `.claude/`                     | Team config: rules, commands, agents, skills, hooks                                            |
+| `awesome-claude-code-toolkit/` | Vendor clone, source of copied components. Not tracked                                         |
 
 ## Stack
 
@@ -41,21 +41,23 @@ Never commit `*.pkl`; pickle artifacts are bound to the exact torch/transformers
 
 ## Routing — where to go for what
 
-| When you are… | Reach for |
-|---|---|
-| starting a new experiment | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track` |
-| comparing runs | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent |
-| a metric moved unexpectedly | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review` |
-| touching Qdrant / persistence | `qdrant-ops` skill · `.claude/rules/storage-invariants.md` |
-| adding a memory backend | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent |
-| navigating unfamiliar code | `codegraph explore <query>` or serena's symbol tools |
-| renaming a symbol repo-wide | serena (LSP-accurate) — not grep-and-replace, not `/rename` |
-| choosing a library | `tool-evaluator` → record the outcome with `/adr` |
-| looking for prior work | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher` |
-| reviewing / merging | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review` |
-| writing Python | `python-best-practices` skill · `python-engineer` agent |
-| prompts / RAG / retrieval design | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent |
-| ending a session | `/checkpoint` — claude-mem captures the rest automatically |
+| When you are…                    | Reach for                                                                                                              |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| starting a new experiment        | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track`                                          |
+| comparing runs                   | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent                                                       |
+| a metric moved unexpectedly      | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review`                                                   |
+| touching Qdrant / persistence    | `qdrant-ops` skill · `.claude/rules/storage-invariants.md`                                                             |
+| adding a memory backend          | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent                                              |
+| navigating unfamiliar code       | `codegraph explore <query>` or serena's symbol tools                                                                   |
+| renaming a symbol repo-wide      | serena (LSP-accurate) — not grep-and-replace, not `/rename`                                                            |
+| choosing a library               | `tool-evaluator` → record the outcome with `/adr`                                                                      |
+| looking for prior work           | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher`                               |
+| reviewing / merging              | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review`                                                  |
+| writing documentation            | `docs/workflows/documentation.md` · `codebase-documenter`, `doc-forge`, `readme-generator`, `onboarding-guide` plugins |
+| writing Python                   | `python-best-practices` skill · `python-engineer` agent                                                                |
+| prompts / RAG / retrieval design | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                                                 |
+| comparing paper to codebase      | `.claude/prompts/memocr-paper-codex-comparison.md` · `prompt-engineering` skill · structured mapping analysis          |
+| ending a session                 | `/checkpoint` — claude-mem captures the rest automatically                                                             |
 
 Rules in `.claude/rules/` are always active; you do not need to invoke them.
 `storage-invariants.md` is path-scoped to retriever/memory/config/experiment paths.
@@ -64,15 +66,15 @@ Rules in `.claude/rules/` are always active; you do not need to invoke them.
 
 Each was deliberately excluded. Re-adding them creates duplicate systems:
 
-| Don't | Because |
-|---|---|
-| `explore` plugin | CodeGraph is already indexed here (`codegraph explore`), and serena does symbols properly |
-| `claude-memory-kit`, `memory-bank` skills | claude-mem (installed, user scope) already owns cross-session memory |
-| `continuous-learning` skill | task-observer (installed) already does pattern capture |
+| Don't                                                                                                                             | Because                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `explore` plugin                                                                                                                  | CodeGraph is already indexed here (`codegraph explore`), and serena does symbols properly             |
+| `claude-memory-kit`, `memory-bank` skills                                                                                         | claude-mem (installed, user scope) already owns cross-session memory                                  |
+| `continuous-learning` skill                                                                                                       | task-observer (installed) already does pattern capture                                                |
 | toolkit session/memory hooks (`session-start`, `context-loader`, `learning-log`, `pre-compact`, `session-end`, `suggest-compact`) | claude-mem + headroom already hold those events; adding these means two systems writing session state |
-| `post-edit-check.js` hook | duplicates `lint-fix.js` on the same write — stale diagnostics at 2× latency |
-| `auto-test.js` hook | would run pytest on save; `experiments/**` tests load 4B/8B models |
-| Postgres/Redis/ERD skills and agents | every relational path in the repo is vendored mem0 **baseline** code, not the active store |
+| `post-edit-check.js` hook                                                                                                         | duplicates `lint-fix.js` on the same write — stale diagnostics at 2× latency                          |
+| `auto-test.js` hook                                                                                                               | would run pytest on save; `experiments/**` tests load 4B/8B models                                    |
+| Postgres/Redis/ERD skills and agents                                                                                              | every relational path in the repo is vendored mem0 **baseline** code, not the active store            |
 
 ## Installed elsewhere (user scope, not this repo)
 
