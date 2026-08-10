@@ -28,3 +28,27 @@ class UtilityWeights(BaseModel):
     w1: float = Field(ge=0.0, description="weight on access_frequency (c)")
     w2: float = Field(ge=0.0, description="weight on interaction_intensity (l)")
     w3: float = Field(ge=0.0, description="weight on recency_decay (d)")
+
+
+class RewardConfig(BaseModel):
+    """lambda_judge, lambda_mem in FluxMem Eq. 9:
+    `r(s) = lambda_judge*r_judge(s) + lambda_mem*r_mem(s)`.
+
+    Defaults are FluxMem's own tuned values (0.7/0.3) -- cited, not derived.
+    `Judge(.)` and `MemUtil(.)` themselves are concretized in ADR 0002
+    (`docs/adr/0002-format-selector-reward-design.md`), not by this config.
+    """
+
+    lambda_judge: float = Field(default=0.7, ge=0.0, le=1.0)
+    lambda_mem: float = Field(default=0.3, ge=0.0, le=1.0)
+
+
+class SelectorConfig(BaseModel):
+    """Hyperparameters for `fluxmem.selector.FormatSelector` (FluxMem Alg. 3)."""
+
+    hidden_dim: int = Field(default=16, ge=1)
+    learning_rate: float = Field(default=1e-2, gt=0.0)
+    max_epochs: int = Field(default=200, ge=1)
+    batch_size: int = Field(default=16, ge=1)
+    patience: int = Field(default=10, ge=1)
+    seed: int = Field(default=0)
