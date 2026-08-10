@@ -41,23 +41,24 @@ Never commit `*.pkl`; pickle artifacts are bound to the exact torch/transformers
 
 ## Routing — where to go for what
 
-| When you are…                    | Reach for                                                                                                              |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| starting a new experiment        | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track`                                          |
-| comparing runs                   | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent                                                       |
-| a metric moved unexpectedly      | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review`                                                   |
-| touching Qdrant / persistence    | `qdrant-ops` skill · `.claude/rules/storage-invariants.md`                                                             |
-| adding a memory backend          | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent                                              |
-| navigating unfamiliar code       | `codegraph explore <query>` or serena's symbol tools                                                                   |
-| renaming a symbol repo-wide      | serena (LSP-accurate) — not grep-and-replace, not `/rename`                                                            |
-| choosing a library               | `tool-evaluator` → record the outcome with `/adr`                                                                      |
-| looking for prior work           | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher`                               |
-| reviewing / merging              | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review`                                                  |
-| writing documentation            | `docs/workflows/documentation.md` · `codebase-documenter`, `doc-forge`, `readme-generator`, `onboarding-guide` plugins |
-| writing Python                   | `python-best-practices` skill · `python-engineer` agent                                                                |
-| prompts / RAG / retrieval design | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                                                 |
-| comparing paper to codebase      | `.claude/prompts/memocr-paper-codex-comparison.md` · `prompt-engineering` skill · structured mapping analysis          |
-| ending a session                 | `/checkpoint` — claude-mem captures the rest automatically                                                             |
+| When you are…                                          | Reach for                                                                                                              |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| starting a new experiment                              | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track`                                          |
+| comparing runs                                         | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent                                                       |
+| a metric moved unexpectedly                            | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review`                                                   |
+| touching Qdrant / persistence                          | `qdrant-ops` skill · `.claude/rules/storage-invariants.md`                                                             |
+| adding a memory backend                                | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent                                              |
+| navigating unfamiliar code                             | `codegraph explore <query>` or serena's symbol tools                                                                   |
+| renaming a symbol repo-wide                            | serena (LSP-accurate) — not grep-and-replace, not `/rename`                                                            |
+| choosing a library                                     | `tool-evaluator` → record the outcome with `/adr`                                                                      |
+| looking for prior work                                 | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher`                               |
+| reviewing / merging                                    | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review`                                                  |
+| writing documentation                                  | `docs/workflows/documentation.md` · `codebase-documenter`, `doc-forge`, `readme-generator`, `onboarding-guide` plugins |
+| writing Python                                         | `python-best-practices` skill · `python-engineer` agent                                                                |
+| prompts / RAG / retrieval design                       | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                                                 |
+| comparing paper to codebase                            | `.claude/prompts/memocr-paper-codex-comparison.md` · `prompt-engineering` skill · structured mapping analysis          |
+| using MemOCR as a visual `EpisodeProducer` for fluxmem | `fluxmem/memocr_episodes.py` · `docs/adr/0003-memocr-fluxmem-integration.md` — not a retriever; `fluxmem/` has none    |
+| ending a session                                       | `/checkpoint` — claude-mem captures the rest automatically                                                             |
 
 Rules in `.claude/rules/` are always active; you do not need to invoke them.
 `storage-invariants.md` is path-scoped to retriever/memory/config/experiment paths.

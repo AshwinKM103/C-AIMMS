@@ -15,7 +15,7 @@ You are a research codebase minimizer and systems integration architect. Your ro
 1. **Identify essential components** — map paper sections (§3.1–§3.3) to minimal file set
 2. **Flag optional utilities** — locate test utilities, experimental recipes, data loaders that support paper but aren't core
 3. **Plan trimming** — produce concrete shell commands (rm, mv) with justification per file/directory
-4. **Design FluxMem bridge** — specify memory abstraction layer connecting MemOCR visual memory to FluxMem's retriever
+4. **Design FluxMem bridge** — specify an `EpisodeProducer` adapter connecting MemOCR visual memory to fluxmem's encoding boundary (`fluxmem/interfaces.py`); fluxmem has no retriever to bridge into (retrieval/ITERRET is explicitly out of scope, see `fluxmem/ltsm.py`)
 5. **Verify no loss** — ensure trimmed codebase still runs paper's training, evaluation, and baseline scripts
 
 **Scope:** Core MemOCR (memory drafting, visual rendering, GRPO training) + minimal evaluation harness + FluxMem integration points.
@@ -123,42 +123,70 @@ mv MemOCR/recurrent/impls/memory_img_final_only_double.py MemOCR/archived/
 
 ---
 
-### Example 3: Integrate with FluxMem (Memory Abstraction Bridge)
+### Example 3: Integrate with FluxMem (Encoding Boundary, Not Retrieval)
 
-**File:** `recurrent/impls/memory_img_final_only_triple.py` (core, ~300 lines)
+**File:** `recurrent/impls/memory_img_final_only_triple.py` (core, `MemoryAgent`, ~300 lines)
+
+**Revision note (2026-08-10):** The version of this example that shipped with
+Step 4 targeted `LightMem/lightmem/factory/retriever/` and a
+`MemoryStore.add()/retrieve()` interface. Neither exists: `LightMem/` was
+removed (commit `50d99be`), and the real `fluxmem/` package explicitly scopes
+retrieval (ITERRET) out — see `fluxmem/ltsm.py`'s module docstring. The
+correct integration point is `fluxmem.interfaces.EpisodeProducer`, the
+Protocol fluxmem already calls "Boundary fake for HETREP (segmentation +
+encoding), a non-goal here." MemOCR is a real encoder for the visual format,
+so it concretizes that boundary instead of adding a competing one.
 
 **Analysis:**
 
-1. **Map to paper:** §3.1 Memory Drafting
+1. **Map to paper:** §3.1 Memory Drafting (MemOCR side) → COLM §1.3.2 HETREP boundary (FluxMem side)
 2. **Classify:** Core
-3. **Integration point:** This class manages persistent rich-text memory state.
-   - FluxMem uses abstract retriever interface (see `LightMem/lightmem/factory/retriever/`)
-   - MemOCR memory is visual (image-based), not text-based
-   - Need adapter layer: MemOCRMemoryStore(MemoryStore) that wraps memory_img_final_only_triple
+3. **Integration point:** `MemoryAgent` manages persistent Markdown memory state (`self.memory`, decoded per-batch-item text) and rendering goes through `md2img/markdown_api_server.py:_markdown_to_image_sync` (Markdown → HTML → Chromium → PNG).
+   - FluxMem's boundary for "turn something external into memory units" is `EpisodeProducer.produce(count) -> list[EpisodicUnit]` (`fluxmem/interfaces.py`), today only satisfied by the test-only `StubEpisodeProducer`.
+   - MemOCR memory is visual (rendered image), matching `MemoryFormat.VC` exactly.
+   - No `add()`/`retrieve()`/query surface exists or should be added — MTEM/LTSM (downstream of `EpisodeProducer`) are what score, promote, and eventually serve episodes; MemOCR does not need to know about either.
 
 **Recommendation:**
 
 ```python
-# File: LightMem/lightmem/factory/retriever/memocr_visual_store.py (NEW)
+# File: fluxmem/memocr_episodes.py (NEW)
 
-class MemOCRVisualStore(MemoryStore):
-    """Adapter: MemOCR visual memory → FluxMem memory abstraction."""
+from __future__ import annotations
 
-    def __init__(self, memocr_agent):
-        self.agent = memocr_agent  # memory_img_final_only_triple instance
+from fluxmem.interfaces import EpisodicUnit, MemoryFormat, Turn
 
-    def add(self, query: str, chunk: str, metadata: dict):
-        """Drafts visual memory for chunk under query context."""
-        self.agent.update_memory(query, chunk)
-        # Returns memory state (Markdown + rendered image)
 
-    def retrieve(self, query: str, budget: int = 256) -> List[Document]:
-        """Retrieves visual memory as Document(content=image, metadata=budget)."""
-        memory_image = self.agent.get_final_memory_image(budget=budget)
-        return [Document(content=memory_image, metadata={'type': 'visual', 'budget': budget})]
+class MemOCREpisodeProducer:
+    """Adapter: MemOCR's rendered Markdown memory -> fluxmem EpisodicUnit (COLM Sec 1.3.2).
+
+    Concretizes `fluxmem.interfaces.EpisodeProducer` for the visual-canvas
+    format. Wraps a `MemoryAgent` (recurrent/impls/memory_img_final_only_triple.py)
+    plus the md2img render call; does not touch MTEM/LTSM/selector/fusion --
+    those consume `EpisodicUnit` the same way regardless of producer.
+    """
+
+    def __init__(self, memory_agent, render_fn):
+        self._agent = memory_agent  # MemoryAgent instance (owns self.memory)
+        self._render_fn = render_fn  # e.g. md2img.markdown_api_server._markdown_to_image_sync
+
+    def produce(self, count: int) -> list[EpisodicUnit]:
+        """Renders up to `count` pending Markdown memory snapshots into EpisodicUnits."""
+        snapshots = self._agent.pending_memory_snapshots(count)  # decoded Markdown text, batched
+        return [self._to_episode(i, md) for i, md in enumerate(snapshots)]
+
+    def _to_episode(self, index: int, markdown_text: str) -> EpisodicUnit:
+        image_bytes = self._render_fn(markdown_text)
+        # visual_salience is a modeling choice -- neither paper defines it
+        # concretely; documented in the ADR, not hedged behind a config flag.
+        return EpisodicUnit(
+            episode_id=f"memocr-episode-{index}",
+            turns=[],  # MemOCR's memory is already a compacted summary, not raw turns
+            primary_format=MemoryFormat.VC,
+            visual_salience=_estimate_visual_salience(image_bytes),
+        )
 ```
 
-**Action:** Create bridge class; document in ADR
+**Action:** Create the `EpisodeProducer` adapter; document the format mapping and the `visual_salience` modeling choice in an ADR. Do not create a `MemoryStore`, factory registration, or any retrieval surface.
 
 ---
 
@@ -252,40 +280,50 @@ mv MemOCR/recurrent/impls/memory_img_final_only_double.py MemOCR/archived/recurr
 ````markdown
 ## FluxMem Integration
 
+**Corrected 2026-08-10:** `LightMem/` no longer exists (removed in `50d99be`),
+and the real `fluxmem/` package (repo root) has no retriever/`MemoryStore`
+abstraction — retrieval (ITERRET) is explicitly out of scope per
+`fluxmem/ltsm.py`. The bridge below targets `fluxmem.interfaces.EpisodeProducer`
+instead, the encoding-side boundary that already exists.
+
 ### Bridge Class (New File)
 
-**Location:** `LightMem/lightmem/factory/retriever/memocr_visual_store.py`
+**Location:** `fluxmem/memocr_episodes.py`
 
-**Purpose:** Adapt MemOCR visual memory to FluxMem's abstract MemoryStore interface.
+**Purpose:** Adapt MemOCR's rendered Markdown memory to fluxmem's `EpisodeProducer`
+boundary, producing `EpisodicUnit`s with `primary_format=MemoryFormat.VC`.
 
-**Key Methods:**
+**Key Method:**
 
-- `add(query, chunk, metadata)` → Drafts visual memory via MemOCR agent
-- `retrieve(query, budget)` → Returns memory image as Document
+- `produce(count) -> list[EpisodicUnit]` → Renders pending MemOCR Markdown
+  memory snapshots (via `md2img/markdown_api_server.py`) into `EpisodicUnit`s.
 
-### Configuration (Existing)
+### Wiring (No Factory — None Exists)
 
-**File:** `LightMem/lightmem/factory/retriever/factory.py` (or similar)
-
-**Addition:**
+`fluxmem/` has no factory/registry pattern; `StubEpisodeProducer` (test-only,
+`fluxmem/interfaces.py`) and `MemOCREpisodeProducer` are both constructed
+directly by whatever assembles the STIM→MTEM pipeline:
 
 ```python
-if config.memory_type == "memocr_visual":
-    from .memocr_visual_store import MemOCRVisualStore
-    agent = MemOCRAgent.from_config(config)  # Instantiate MemOCR
-    return MemOCRVisualStore(agent)
+from fluxmem.memocr_episodes import MemOCREpisodeProducer
+
+producer = MemOCREpisodeProducer(memory_agent=agent, render_fn=_markdown_to_image_sync)
+episodes = producer.produce(count=batch_size)  # -> list[EpisodicUnit], feeds MTEM
 ```
-````
 
 ### ADR (Architecture Decision Record)
 
-**File:** `docs/adr/memocr-fluxmem-integration.md`
+**File:** `docs/adr/NNNN-memocr-fluxmem-integration.md`
 
-**Rationale:** MemOCR provides visual-priority memory; FluxMem's retriever abstraction enables memory-agnostic agent design.
+**Rationale:** MemOCR provides a visual-priority encoder for the `MemoryFormat.VC`
+episodes fluxmem's `EpisodeProducer` boundary expects; no retrieval surface
+needs to exist for this, since fluxmem does not implement one.
 
-**Tradeoff:** Vision encoder cost (image → tokens) vs. information density gain.
+**Tradeoff:** Vision encoder/render cost (Markdown → image) vs. information
+density gain; `visual_salience` is a modeling choice with no citation in
+either paper, stated explicitly rather than assumed.
 
-```
+````
 
 ---
 
@@ -295,7 +333,7 @@ if config.memory_type == "memocr_visual":
 | --- | --- | --- |
 | **Explore agent** | Survey recurrent/ and recipe/ structure, identify orphan modules | `Agent(type=Explore, task="find all memory implementation files")` |
 | **code-reviewer** | Audit removal impact: check for hidden dependencies, cross-repo imports | `/logic-review` on core files before removal |
-| **refactoring-specialist** | Extract common patterns from memory_*_triple.py variants before deletion | Integrate FluxMem bridge |
+| **refactoring-specialist** | Design the `EpisodeProducer` adapter (`fluxmem/memocr_episodes.py`) | Use after trim, targeting `fluxmem.interfaces.EpisodeProducer` |
 | **documentation-engineer** | Write ADR for FluxMem integration, update CLAUDE.md routing table | `/adr` for integration decision |
 | **Bash (find + grep)** | Verify no code references deleted files, measure size savings | Inline commands above |
 
@@ -305,9 +343,10 @@ if config.memory_type == "memocr_visual":
 
 - ✗ **Delete entire `recipe/` without checking if any scripts reference it** — Check `train.sh`, `eval.sh` first
 - ✗ **Remove `recurrent/impls/memory_*.py` variants without understanding which one paper uses** — Verify against `train.sh:103` (model selection)
-- ✗ **Skip FluxMem integration spec** — Without a bridge, MemOCR and FluxMem remain disconnected
+- ✗ **Skip FluxMem integration spec** — Without an `EpisodeProducer` adapter, MemOCR and fluxmem remain disconnected
 - ✗ **Assume all taskutils are optional** — Some (e.g., `process_test.py`) are required for eval
 - ✗ **Delete without committing current state** — Risk losing reference if removal breaks things
+- ✗ **Reintroduce a retriever/`MemoryStore` abstraction** — `fluxmem/` explicitly scopes retrieval (ITERRET) out; the bridge is an `EpisodeProducer`, not a query surface
 
 ---
 
@@ -317,9 +356,9 @@ if config.memory_type == "memocr_visual":
 - [ ] Bash commands provided for safe removals (tested locally or verified safe)
 - [ ] Trimmed codebase still runs: `bash scripts/train.sh` (or test subset)
 - [ ] All paper-required files identified and marked "Keep"
-- [ ] FluxMem bridge design documented (new file, integration points clear)
+- [ ] `EpisodeProducer` bridge design documented (`fluxmem/memocr_episodes.py`, integration points clear)
 - [ ] ADR written for integration decision
-- [ ] `CLAUDE.md` routing table updated: "Using MemOCR as visual memory in FluxMem" → `.claude/prompts/memocr-fluxmem-integration.md`
+- [ ] `CLAUDE.md` routing table updated: "Using MemOCR as a visual `EpisodeProducer` for fluxmem" → `.claude/prompts/memocr-codebase-trim-and-fluxmem-integration.md`
 - [ ] Final size reported: from 42MB → X MB; file count X → Y
 
 ---
@@ -330,7 +369,7 @@ if config.memory_type == "memocr_visual":
 2. **Verify** (grep commands) — Check no code references deletions
 3. **Trim** (bash rm) — Remove safe candidates; move optional to archived/
 4. **Test** (local run) — Verify train.sh and eval.sh still work
-5. **Integrate** (refactoring-specialist) — Create FluxMem bridge class
+5. **Integrate** (refactoring-specialist) — Create `MemOCREpisodeProducer` (`fluxmem/memocr_episodes.py`)
 6. **Document** (documentation-engineer) — Write ADR, update routing table
-7. **Commit** — Single PR: "refactor: trim MemOCR codebase for COLM paper, integrate FluxMem" with detailed commit msg
+7. **Commit** — Single PR: "refactor: trim MemOCR codebase for COLM paper, integrate fluxmem `EpisodeProducer`" with detailed commit msg
 ```
