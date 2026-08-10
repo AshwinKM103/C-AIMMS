@@ -52,3 +52,16 @@ class SelectorConfig(BaseModel):
     batch_size: int = Field(default=16, ge=1)
     patience: int = Field(default=10, ge=1)
     seed: int = Field(default=0)
+
+
+class FusionConfig(BaseModel):
+    """BMM-gated fusion parameters (FluxMem Eqs. 17-26, Alg. 1).
+
+    `m_min` (min-keep top-k fallback) appears nowhere in COLM but is
+    load-bearing in FluxMem Alg. 1 -- see the plan's research finding.
+    """
+
+    tau: float = Field(default=0.7, gt=0.0, lt=1.0, description="posterior threshold")
+    m_min: int = Field(default=1, ge=0, description="min-keep top-k fallback")
+    em_iters: int = Field(default=50, ge=1, description="BMM EM iterations")
+    eps: float = Field(default=1e-3, gt=0.0, lt=0.5, description="Eq. 17 min-max inset")
