@@ -54,6 +54,20 @@ class SelectorConfig(BaseModel):
     seed: int = Field(default=0)
 
 
+class PromotionThresholds(BaseModel):
+    """LTSM promotion gate (COLM Sec 1.3.2): `U(e) >= tau_u AND r(e) >= tau_r`.
+
+    `tau_u` is on the composite `U`'s scale (`[0, w1+w2+w3]` given the
+    `[0,1]`-normalized terms in fluxmem/mtem.py), not FluxMem's raw usage-
+    count scale -- see fluxmem/ltsm.py's module docstring. `max_age` sets
+    the linear horizon for the hard recency gate `r`.
+    """
+
+    tau_u: float = Field(gt=0.0)
+    tau_r: float = Field(ge=0.0, le=1.0)
+    max_age: float = Field(gt=0.0)
+
+
 class FusionConfig(BaseModel):
     """BMM-gated fusion parameters (FluxMem Eqs. 17-26, Alg. 1).
 
