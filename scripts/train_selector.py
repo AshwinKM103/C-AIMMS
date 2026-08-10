@@ -64,7 +64,7 @@ def main() -> None:
     X, y = label_episodes(episodes, runner, judge, mem_util, config.reward, entity_extractor)
     split = max(1, int(0.8 * len(X)))
     X_train, y_train = X[:split], y[:split]
-    X_val, y_val = X[split:] or X_train, y[split:] or y_train
+    X_val, y_val = (X[split:], y[split:]) if split < len(X) else (X_train, y_train)
 
     selector = FormatSelector(config.selector)
     history = selector.fit(X_train, y_train, X_val, y_val)
