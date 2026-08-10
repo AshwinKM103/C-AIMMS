@@ -78,7 +78,7 @@ Each was deliberately excluded. Re-adding them creates duplicate systems:
 
 `claude-mem` (cross-session memory) · `headroom` (token compression proxy) · `task-observer`
 (skill-opportunity capture) · `claude-code-setup` · `omniroute` (MCP router) · CodeGraph CLI.
-See `LightMem/CLAUDE.md` for their operational detail. Adopted externals and their install
+See `docs/workflows/lightmem-tooling.md` for their operational detail. Adopted externals and their install
 commands: `setup/install-external.sh`.
 
 ## Conventions
