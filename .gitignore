@@ -8,6 +8,9 @@ awesome-claude-code-toolkit/
 !.env.example
 .claude/settings.local.json
 
+# Claude Code configuration and session data (synced separately to private config repo)
+.claude-profile/
+
 # Research artifacts that must never be committed
 *.pkl
 *.pt
