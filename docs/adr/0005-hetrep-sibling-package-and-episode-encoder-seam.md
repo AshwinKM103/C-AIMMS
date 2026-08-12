@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 2026-08-12. Gates `hetrep/` (Phase 0 tasks T-03, T-04 of the hetrepv2 plan) and the
+Accepted — 2026-08-13 (revised). Gates `hetrep/` (Phase 0 tasks T-03, T-04 of the hetrepv2 plan) and the
 addition of `EpisodeEncoder` to `fluxmem/interfaces.py`. No other `fluxmem/` module changes.
 Supersedes revision 1 of `.claude/prompts/hetrepv2-3format-storage-implementation.md`, which
 targeted `fluxmem/HetRep/` — that target is rejected in place, not merely deprioritized.
@@ -113,19 +113,38 @@ Full data flow per COLM Algorithm 1:
 
 ```
 raw dialogue
-  → EM-LLM surprise segmentation (§1.3.1)     → EpisodicUnit(turns=[...])
-  → HetRepEncoder.encode (§1.2)               → + embedding, hyperedge_density, visual_salience
-  → FormatSelector.predict (§1.3.3)           → primary_format
-  → select_merge_target / MTEM.add (§1.3)     → stored
-  → ltsm.promote (§1.3.2)                     → consolidated
+  → EM-LLM surprise segmentation (§1.3.1)  → EpisodicUnit(turns=[...])
+  → HetRepEncoder.encode (§1.2)            → + embedding, hyperedge_density, visual_salience
+  → FormatSelector.predict (§1.3.3)        → primary_format
+  → select_merge_target / MTEM.add (§1.3)  → stored
+  → ltsm.promote (§1.3.2)                  → consolidated
 ```
 
 Because `turns` is now preserved from segmentation through to feature extraction regardless of
 which format's encoder ran, all seven features in `fluxmem/features.py` compute correctly for
-every unit — directly fixing the bug identified above. `EpisodeProducer` is not removed:
-`StubEpisodeProducer` still exists for hermetic tests that need synthetic units with no upstream
-segmentation stage at all, and `MemOCREpisodeProducer` remains valid wherever a caller genuinely
-has no separate segmentation step to run first. `EpisodeEncoder` is additive.
+every unit — directly fixing the bug identified above.
+
+### Critical Clarification: COLM Eq. 1 Tuple vs. Current Storage
+
+COLM Eq. 1 specifies `M_T = {(H_j, I_j, v_j, f_j)}_{j=1}^N` where each element is:
+
+| Symbol | COLM Definition                                     | Current EpisodicUnit Field                                       | Real Storage Arrives |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------- | -------------------- |
+| `H_j`  | Hypergraph subgraph (nodes + edges, data structure) | `hyperedge_density: float` (scalar derived from hyperedge count) | Phase 2 (hetrep/hg/) |
+| `I_j`  | Rendered image ∈ R^{H×W×3} (visual canvas)          | `visual_salience: float` (scalar proxy of layout salience)       | Phase 3 (hetrep/vc/) |
+| `v_j`  | Dense embedding ∈ R^384 (all-MiniLM-L6-v2)          | `embedding: np.ndarray` ✓ (implemented)                          | Phase 1 ✓            |
+| `f_j`  | Format label ∈ {HG, VC, VS}                         | `primary_format: MemoryFormat` ✓ (implemented)                   | Phase 0 ✓            |
+
+**Why scalars, not full structures?** The selector (fluxmem.selector.FormatSelector) in COLM §1.3.3 operates on a 7-element feature vector to choose one format _before_ deciding which representation to store. Today's scalars (`hyperedge_density`, `visual_salience`) are **derived summaries** used only for feature extraction and format selection — not the full `H_j` or `I_j` themselves.
+
+**Architectural consequence stated explicitly:** The complete Eq. 1 tuple `(H_j, I_j, v_j, f_j)` does **not yet exist end-to-end** in C-AIMMS:
+
+- Today (Phase 0): stores `(v_j_embedded, f_j_selected, feature_scalars)`
+- Phase 1: `v_j` fully implemented via all-MiniLM-L6-v2
+- Phase 2: `H_j` (actual hypergraph) produced by hetrep/hg/, `hyperedge_density` computed from it
+- Phase 3: `I_j` (actual image) produced by hetrep/vc/, `visual_salience` computed from layout
+
+Once a format is chosen, COLM Eq. 1 says the selected representation should be stored in a heterogeneous store (ITERRET, COLM §1.4). That store is out of scope for `fluxmem` and will be `hetrep`'s responsibility in Phase 2–3. Today's `hyperedge_density` and `visual_salience` are feature-only; they are not yet tied to actual storage of the full `H_j` or `I_j` structures.
 
 ## Consequences
 
@@ -166,28 +185,13 @@ has no separate segmentation step to run first. `EpisodeEncoder` is additive.
   stated direction. Mitigation: the CI guard in T-09; any such test should instead depend on a
   fake `EpisodeEncoder` implemented in `fluxmem/tests/` itself, the same pattern already used for
   `FakeEntityExtractor`.
-- **`visual_salience` stays constant through Phases 1-2.** With VC stubbed
-  (`hetrep/vc/stub.py`, ADR-adjacent decision in the hetrepv2 plan §4), `visual_salience = 0.0`
-  for every unit until Phase 3 lands. This is not a regression introduced by this ADR — it is the
-  same placeholder value the field already had — but it means the selector remains wired and
-  tested, not trained, until Phase 3, consistent with the sequencing decision recorded in the
-  hetrepv2 plan and the prior `memocr-integration-handoff` memory note.
-- **`ltsm.promote` fails silently on a misconfigured encoder.** `fluxmem/ltsm.py:148-149` skips
-  any episode where `embedding is None` with no error raised. If a `HetRepEncoder` implementation
-  has a bug that leaves `embedding` unset, the symptom is an empty or undersized `LTSM` with no
-  exception — the same "wrong number, not a crash" failure mode this ADR's own bug fix targets.
-  Mitigation: the Phase 1 harness (hetrepv2 plan §5) asserts a non-empty `FaissVectorStore` rather
-  than trusting the absence of an exception.
+- **`visual_salience` stays constant through Phases 1-2.** With VC stubbed to 0.0 until Phase 3,
+  the selector sees a constant column for one-third of the label space, so the selector is wired
+  but not trained until Phase 3 unblocks it. See ADR 0003.
 
 ## Related
 
-- **ADR 0003** established the injection-over-direct-import pattern this seam extends, and its
-  `EpisodeProducer` choice and `visual_salience` proxy are partially superseded here — see that
-  ADR's own text for the parts that still stand (the injection reasoning) versus what changes
-  (the seam itself, and the salience question reopened for Phase 3).
-- **ADR 0006** — the submodule conversion of `HyperMem`, `MemOCR`, `EM-LLM` that Phase 2/3 encoders
-  will depend on.
-- **ADR 0007** — how the HG arm of `HetRepEncoder` reuses HyperMem's data model without importing
-  its pipeline.
-- **ADR 0008** — the fidelity rule `HetRepEncoder`'s VS and HG arms follow when their reused
-  components diverge from COLM's spec.
+- **ADR 0003:** Episode producer seam; visual_salience placeholder rationale.
+- **ADR 0006:** HyperMem, MemOCR, EM-LLM become submodules (needed for HG/VC phases).
+- **ADR 0007:** HG encoder reuses HyperMem.structure, not its pipeline.
+- **ADR 0008:** COLM-vs-component fidelity on embedding model and propagation.

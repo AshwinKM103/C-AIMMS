@@ -2,9 +2,11 @@
 
 ## Status
 
-Accepted — 2026-08-12. Sets the reuse strategy for Phase 2 of the hetrepv2 plan (`hetrep/hg/`,
+Accepted — 2026-08-13 (revised). Sets the reuse strategy for Phase 2 of the hetrepv2 plan (`hetrep/hg/`,
 tasks T-11 through T-14). No `hetrep/hg/` code lands before this ADR; `hetrep/hg/adapter.py`
-implements the decision below.
+implements the decision below. Clarifies that EM-LLM (surprise-based segmentation) is the canonical
+segmentation source for HetRep phases; HyperMem and MemOCR have independent segmentation that will
+not be used.
 
 ## Context
 
@@ -15,13 +17,27 @@ HG format needs. It was audited module-by-module for reuse potential (hetrepv2 p
 calls, findings below); the audit's conclusion splits cleanly into "importable as-is" and "not
 importable without dragging in machinery HetRep's HG arm does not need."
 
+### Three Independent Segmentation Methods (Audit Finding)
+
+An important clarification emerged: C-AIMMS contains three separate episode segmentation methods, none of which are fallbacks for each other. All are LLM-based (or fixed-window for MemOCR), so **EM-LLM is not a primary with automatic fallback**:
+
+| Method                      | Source                                                           | Algorithm                                                                                                     | Notes                                                                                                                          |
+| --------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **EM-LLM (surprise-based)** | `EM-LLM/caimms_boundary_creator.py`, `similarity_refinement/`    | Tracks model-output surprise/KL-divergence from running window to detect episode boundaries                   | Canonical for HetRep phases per ADR 0005 data flow; EM-LLM segmentation → EpisodicUnit(turns=[...]) → HetRepEncoder            |
+| **HyperMem (LLM-based)**    | `HyperMem/stage1_memory_extraction.py:135–250`                   | Calls `ConvEpisodeExtractor.extract_episode()` per-message; uses LLM boundary detector + `should_wait` signal | Fully independent; never calls EM-LLM; exists because HyperMem's own pipeline needed segmentation before ADASTORE existed      |
+| **MemOCR (fixed-window)**   | `MemOCR/recurrent/impls/memory_img_final_only_triple.py:196–274` | Fixed-size chunk buffer (`chunk_size * (step + 1)`) on message arrivals                                       | Segmentation is naive chunking, not intelligent; combined with encoding (renders to canvas) in one `MemoryAgent.action()` call |
+
+**Design consequence:** There is **no automatic fallback** between these. They are three parallel implementations chosen by the caller. HetRep uses EM-LLM exclusively (per ADR 0005's data flow). HyperMem and MemOCR ship their own segmentation for standalone use, but C-AIMMS research focuses on EM-LLM + HetRep + fluxmem composition.
+
+**ADR 0004 note:** This clarifies an open question left in ADR 0004's prose ("Dual-segmentation remains... pending EM-LLM integration"). The answer: three methods exist, no fallback chain assumed, EM-LLM is canonical for HetRep.
+
 ### What is directly reusable
 
 | Module                                        | Contents                                                                 | Verified how                                                                                                                             |
 | --------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `hypermem/structure.py`                       | `Hypergraph`, `FactNode`/`EpisodeNode`/`TopicNode`, both hyperedge types | `to_dict()`/`from_dict()` (`structure.py:358-375`) round-trip through plain JSON — executed directly, not inferred from reading the code |
 | `hypermem/types.py`                           | `Episode`, `Fact`, `Topic` dataclasses                                   | Imports cleanly with no LLM, no network                                                                                                  |
-| `hypermem/extractors/hypergraph_extractor.py` | `build_hypergraph(episodes)` — a pure function, no side effects          | Imports and runs standalone; no `sys.path.insert` dependency at call time                                                                |
+| `hypermem/extractors/hypergraph_extractor.py` | `build_hypergraph(episodes)` — a **pure function**                       | Imports and runs standalone; no `sys.path.insert` dependency at call time                                                                |
 | `hypermem/utils/datetime_utils.py`            | stdlib-only helpers                                                      | No external dependency                                                                                                                   |
 
 This is a small, coherent subset: a data model plus one pure function that assembles it from a
@@ -34,7 +50,7 @@ or any GPU-touching library, or requires `sys.path.insert(0, ...)` gymnastics �
 
 Four properties of HyperMem's architecture, each independently confirmed:
 
-1. **LLM required at encode time, not just query time.** `topic_extractor.py:318,452,701,824` and
+1. **LLM required at extraction time, not just query time.** `topic_extractor.py:318,452,701,824` and
    `fact_extractor.py:375,592` and `conv_episode_extractor.py:242,290` all call an LLM inline
    during extraction. There is no offline/deterministic extraction path — every fact and topic
    the hypergraph would contain is produced by a live model call, with no injection boundary
@@ -72,7 +88,8 @@ dependency.
 ## Decision
 
 **Reuse `structure.py` and `build_hypergraph()` directly, unmodified. Do not import or adapt
-HyperMem's extractors, stages, or pipeline glue.**
+HyperMem's extractors, stages, or pipeline glue. Treat EM-LLM as the canonical segmentation source
+for HetRep phases (per ADR 0005), not HyperMem's independent LLM-based segmentation.**
 
 `hetrep/hg/adapter.py` maps `EpisodicUnit` (fluxmem/HetRep's type) to HyperMem's `Episode`
 (`hypermem/types.py`) and back, so that `build_hypergraph()` can be called against
@@ -97,72 +114,39 @@ hermetic (`.claude/rules/testing.md`).
 
 ### Why injection over adaptation
 
-| Option                                                                     | Description                                                                            | Tradeoff                                                                                                                                                                         |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (a) Wrap HyperMem's extractors in an adapter that supplies the HTTP config | `hetrep/hg/` owns HyperMem's Qwen3-over-HTTP client setup internally                   | Every `hetrep/hg/` test needs two live HTTP servers or heavy mocking of them; also locks the HG arm to Qwen3, which ADR 0008 rejects on fidelity grounds independent of this ADR |
-| (b) Inject `FactExtractor`/`TopicExtractor` Protocols (chosen)             | `hetrep/hg/encoder.py` is pure orchestration; caller supplies real extractors or fakes | One layer of indirection at the call site; keeps `hetrep/hg/` tests hermetic and lets extractor implementation vary independently of the encoder                                 |
+| Option                                                                             | Description                                                                         | Tradeoff                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (a) Wrap HyperMem's extractors in an adapter, expose as `FactExtractor` Protocol   | Reuse proven extraction logic                                                       | Still hard-imports HyperMem's LLM clients and HTTP dependencies; tests can't run hermetically without mocking those servers; externally-facing HTTP makes testing non-deterministic |
+| (b) Inject Protocols for extractors; plug HyperMem's in or write new ones (chosen) | Hermetic testing; extractors swappable; LLM/HTTP fully decoupled from HG data model | HyperMem's extractors are not pre-wrapped; someone must wire them behind the Protocols if they are to be used; requires understanding HyperMem's LLM client shape                   |
 
-**Decision: (b).** This is the same shape of tradeoff ADR 0003 resolved for MemOCR's renderer and
-ADR 0002 resolved for `JudgeReward`/`MemUtilReward`: the concrete implementation that does real
-work over a network is injected, never imported directly, so the package's own tests never require
-live infrastructure. Concretely, HyperMem's own extractors _can_ satisfy `FactExtractor` and
-`TopicExtractor` — nothing prevents wiring `hypermem.extractors.topic_extractor` in as one
-concrete implementation at the call site where a real LLM endpoint is available — but `hetrep/hg/`
-itself never imports it, so a unit test can supply a deterministic fake instead.
+**Decision: (b).** Tests in `hetrep/hg/` use fake extractors that return scripted facts/topics; when HetRep ships, a separate `hetrep/hg/hypermem_adapter.py` (or integration docs) can show how to wire HyperMem's LLM-based extractors behind the Protocol if a caller chooses to use HyperMem's approach. That adapter lives in HetRep's repo, not entangled with HyperMem's pipeline structure.
 
 ## Consequences
 
 ### Positive
 
-- **Minimal, verified reuse surface.** Only `structure.py` and one pure function cross the
-  boundary; both were executed, not merely read, during the audit that grounds this decision.
-- **`hetrep/hg/` is testable with zero LLM calls and zero network dependency**, satisfying
-  `.claude/rules/testing.md`'s hermeticity requirement for the default test loop.
-- **Extraction is swappable per experiment.** A different LLM provider, a smaller/cheaper model,
-  or a no-op extractor for ablation studies can all satisfy the same Protocols without touching
-  `hetrep/hg/encoder.py` or `adapter.py`.
-- **Incremental use, unlike the source pipeline.** Because `hetrep/hg/` calls
-  `build_hypergraph()` per-unit rather than adopting HyperMem's per-conversation batch model, it
-  matches the actual arrival pattern of encoded units from the `EpisodeEncoder` seam (ADR 0005).
-- **No pickle.** Persistence goes through `Hypergraph.to_dict()` → JSON (ADR 0005 §3.3), sidestepping
-  HyperMem's own pickle-based indexing and `.claude/rules/storage-invariants.md` entirely.
+- **Minimal dependency on HyperMem.** Only structure.py + `build_hypergraph()`, both generic.
+- **Testable in isolation.** hetrep/hg/ can inject fakes; no LLM required for unit tests.
+- **Flexible extraction.** Different extractors can be swapped (HyperMem's, custom, or no-op for ablation).
+- **Extensible.** MemOCR or other extractors can implement the same Protocols.
+- **EM-LLM remains canonical.** No accidental dual-segmentation or fallback chains; architecture is explicit.
 
 ### Negative
 
-- **Extraction logic is not reused, only its target data model.** `hetrep/hg/` starts from a blank
-  page for fact/topic extraction quality — HyperMem's extractors embody real prompt engineering
-  and multi-case decision logic (e.g., ADR 0004's G2 fix, the three-case topic-matching tree) that
-  a from-scratch `TopicExtractor` implementation does not automatically inherit.
-- **Two codebases now define overlapping concepts.** `hetrep/hg/adapter.py`'s `Episode` mapping
-  must be kept in sync with `hypermem/types.py` if HyperMem's schema changes across submodule SHA
-  bumps (ADR 0006).
+- **Extraction not yet implemented in hetrep.** Phase 2 code must write the injection wiring (not trivial; HyperMem's extractors are complex).
+- **HyperMem pipeline unused.** Stages 1–6, LoCoMo glue, HTTP servers are out of scope; they remain in HyperMem for reference but hetrep starts from scratch.
 
 ### Risks
 
-- **Protocol/implementation drift.** If a future submodule SHA bump changes HyperMem's `Episode`
-  or `Fact` dataclass shape, `hetrep/hg/adapter.py` breaks silently unless a test pins the
-  expected shape. Mitigation: `hetrep/tests/` includes a round-trip test against the actual
-  submodule's `types.py`, not just a hand-written fixture, so a SHA bump that changes the schema
-  fails a test rather than corrupting graphs silently.
-- **`build_hypergraph()` has undocumented input assumptions.** It is a pure function but was
-  audited for importability, not for its full input-validation contract; if it expects fields on
-  `Episode` that a from-scratch `TopicExtractor`/`FactExtractor` pair does not populate, the
-  failure mode could be a malformed graph rather than an exception. Mitigation: assertions in
-  `hetrep/hg/encoder.py` on the fields `build_hypergraph()` is confirmed to read, checked against
-  the actual function body before Phase 2 code lands, not assumed from the type signature alone.
-- **Reimplementing extraction from scratch is nontrivial.** This is flagged as a negative above
-  and repeated here as a risk to the Phase 2 timeline specifically: the hetrepv2 plan's own task
-  list (T-12) treats extractor implementation as real, non-trivial work, not a thin wrapper.
+- **Extractor Protocol mismatch.** If HyperMem's extractors evolve (e.g., signature change), the Protocol must be updated. Mitigation: Protocol is versioned in hetrep/hg/; HyperMem adapter goes in HyperMem repo (ADR 0006).
+- **Build order dependency.** `build_hypergraph()` expects certain fields in Episode; if extractors don't populate them, build fails silently. Mitigation: assertions in hetrep/hg/encoder.py.
+- **Three segmentation methods can cause confusion.** Clarifying that EM-LLM is canonical helps, but documentation must be explicit everywhere (Phases 1–3 only use EM-LLM, HyperMem/MemOCR are parallel).
 
 ## Related
 
-- **ADR 0003** — established the injection-over-direct-import pattern (MemOCR's render path) that
-  this decision extends to HyperMem's extractors.
-- **ADR 0004** — HyperMem's Phase 1–3 gap fixes (G1–G8); those fixes live in the stages this ADR
-  explicitly does not reuse, so they improve HyperMem's own retrieval baseline without affecting
-  `hetrep/hg/`'s correctness.
-- **ADR 0005** — `EpisodeEncoder` seam; `HgEncoder.encode` is one of its concrete implementations.
-- **ADR 0006** — HyperMem's submodule conversion; `structure.py` and `build_hypergraph()` are
-  imported from the pinned submodule SHA, not a separate vendored copy.
-- **ADR 0008** — resolves the propagation-formula and embedding-model choices `hetrep/hg/`'s
-  `propagation.py` and Phase 2's extractor implementations must follow.
+- **ADR 0003.** Dependency injection pattern (EntityExtractor in fluxmem).
+- **ADR 0004.** HyperMem integration and fixes; clarifies "dual-segmentation" question is resolved (EM-LLM canonical).
+- **ADR 0005.** HETREP architecture; HG is Phase 2; EM-LLM data flow.
+- **ADR 0006.** HyperMem becomes a submodule; structure.py is importable.
+- **ADR 0010** (new): EM-LLM KV cache behavior and GPU memory management.
+- **ADR 0011** (new): MemOCR segmentation and training architecture.
