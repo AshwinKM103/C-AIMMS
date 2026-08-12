@@ -88,6 +88,33 @@ class EpisodeProducer(Protocol):
 
 
 @runtime_checkable
+class EpisodeEncoder(Protocol):
+    """HETREP boundary (COLM §1.2, Algorithm 1 line 4): enrich a segmented unit.
+
+    Distinct from EpisodeProducer, which conflates segmentation with encoding.
+    Segmentation is ADASTORE's (EM-LLM, COLM §1.3.1); this is encoding only.
+
+    Per §1.2: encode e_j into (H_j, I_j, v_j) via three-format HETREP:
+    - VS (Vector Store): 384-d all-MiniLM-L6-v2 embedding.
+    - HG (Hypergraph): node and edge structures for graph retrieval.
+    - VC (Visual Canvas): rendered markdown + layout-aware salience.
+
+    Data flow (COLM Algorithm 1):
+      raw dialogue
+        → EM-LLM surprise segmentation (§1.3.1)     → EpisodicUnit(turns=[...])
+        → HetRepEncoder.encode (§1.2)               → + embedding, hyperedge_density, visual_salience
+        → FormatSelector.predict (§1.3.3)           → primary_format
+        → select_merge_target / MTEM.add (§1.3)     → stored
+        → ltsm.promote (§1.3.2)                     → consolidated
+
+    Encoder populates embedding, hyperedge_density, visual_salience and
+    leaves turns and primary_format untouched; selector decides format downstream.
+    """
+
+    def encode(self, unit: EpisodicUnit) -> EpisodicUnit: ...
+
+
+@runtime_checkable
 class EntityExtractor(Protocol):
     """NER boundary, injected into fluxmem/features.py."""
 
