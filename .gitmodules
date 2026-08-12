@@ -1,0 +1,9 @@
+[submodule "HyperMem"]
+	path = HyperMem
+	url = https://github.com/AshwinKM103/HyperMem.git
+[submodule "MemOCR"]
+	path = MemOCR
+	url = https://github.com/AshwinKM103/MemOCR.git
+[submodule "EM-LLM"]
+	path = EM-LLM
+	url = https://github.com/AshwinKM103/EM-LLM.git
