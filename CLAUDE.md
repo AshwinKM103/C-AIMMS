@@ -9,84 +9,72 @@ in `.claude/rules/` (always-on standards), `docs/workflows/` (read on demand), a
 
 ## Layout
 
-| Path                           | What                                                                                           |
-| ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `LightMem/`                    | The research codebase. **Its own git repo** (fork of zjunlp/LightMem) — commit there, not here |
-| `docs/`                        | ADRs, diagrams, workflows, analysis                                                            |
-| `.claude/`                     | Team config: rules, commands, agents, skills, hooks                                            |
-| `awesome-claude-code-toolkit/` | Vendor clone, source of copied components. Not tracked                                         |
+| Path                    | What                                                  |
+| ----------------------- | ----------------------------------------------------- |
+| `fluxmem/`              | Core method — flat STIM/MTEM/LTSM encoding pipeline   |
+| `hetrep/`               | Heterogeneous encoding (VS/HG/VC) upstream of fluxmem |
+| `HyperMem/` (submodule) | Hypergraph memory extraction (ADR 0004 fixes)         |
+| `MemOCR/` (submodule)   | Visual episode extraction and rendering               |
+| `EM-LLM/` (submodule)   | Surprise-based episode segmentation                   |
+| `docs/`                 | ADRs, diagrams, workflows, analysis                   |
+| `.claude/`              | Team config: rules, commands, agents, skills, hooks   |
 
 ## Stack
 
-Python 3.10–3.11 · torch 2.8 · transformers 4.57 · sentence-transformers · **Qdrant** (vector store)
-· networkx (graph memory) · llmlingua (compression) · openai / ollama / vllm backends · pydantic 2
-· pytest · ruff. Three subsystems: `lightmem` (core), `fluxmem`, `em2mem`.
+Python 3.11.15 (caimms env, canonical per ADR 0009) · torch >=2.7,<2.9 · sentence-transformers ·
+faiss · spacy · scikit-learn · pydantic 2 · pytest · ruff.
+Memory system = segmentation (EM-LLM) → encoding (HetRep: VS/HG/VC) → storage (fluxmem STIM/MTEM/LTSM).
+Components are composable; Phase 1 (VS) needs no LLM; Phases 2–3 (HG/VC) need serving infrastructure.
 
-- Conda env: `conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem`
-- Local model paths live in `LightMem/.env` (gitignored): `LLMLINGUA_MODEL_PATH`,
-  `EMBEDDING_MODEL_PATH`, `QWEN3_4B_INSTRUCT_PATH`, `LLAMA31_8B_INSTRUCT_PATH`
+**Setup:**
+
+```bash
+git clone --recursive https://github.com/AshwinKM103/C-AIMMS.git
+cd C-AIMMS
+conda activate caimms  # or: conda create -n caimms python=3.11.15 && conda activate caimms
+pip install -e .
+```
+
+- Canonical env: `caimms` (Python 3.11.15); required for fluxmem + hetrep imports
+- Local model paths: `.env` (gitignored): `EMBEDDING_MODEL_PATH` (all-MiniLM-L6-v2), etc.
 - **Large artifacts go under `/mnt/ssd/users/durgesh/`, never `/home`** (small disk, near-full)
+- NLTK data: `/mnt/ssd/users/durgesh/nltk_data/` (pre-fetched in setup)
 
-## Storage invariants (the short version)
+## Storage invariants
 
-Full rules: `.claude/rules/storage-invariants.md`. The two that bite:
-
-1. `QdrantConfig.path` defaults to `/tmp/qdrant`, and constructing the client with `on_disk=False`
-   (**the default**) on an existing path calls `shutil.rmtree` on it. Re-running an experiment
-   silently destroys the previous store.
-2. BM25 hybrid exists in **FluxMem only**. `lightmem/factory/retriever/contextretriever/bm25.py`
-   is an empty stub — do not record "BM25 enabled" for a lightmem-core run.
+Full rules: `.claude/rules/storage-invariants.md`.
 
 Never commit `*.pkl`; pickle artifacts are bound to the exact torch/transformers build that wrote them.
+Large artifacts: `/mnt/ssd/users/durgesh/`, never `/home` (small disk).
 
-## Routing — where to go for what
+## Workflows
 
-| When you are…                                          | Reach for                                                                                                              |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| starting a new experiment                              | `docs/workflows/new-experiment.md` · `experiment-discipline` skill · `/track`                                          |
-| comparing runs                                         | `/compare` · `/evaluate-model` · `benchmarking-specialist` agent                                                       |
-| a metric moved unexpectedly                            | `docs/workflows/debug-a-metric.md` → `/bisect`, then `/logic-review`                                                   |
-| touching Qdrant / persistence                          | `qdrant-ops` skill · `.claude/rules/storage-invariants.md`                                                             |
-| adding a memory backend                                | `docs/workflows/add-memory-backend.md` · `vector-database-engineer` agent                                              |
-| navigating unfamiliar code                             | `codegraph explore <query>` or serena's symbol tools                                                                   |
-| renaming a symbol repo-wide                            | serena (LSP-accurate) — not grep-and-replace, not `/rename`                                                            |
-| choosing a library                                     | `tool-evaluator` → record the outcome with `/adr`                                                                      |
-| looking for prior work                                 | `docs/workflows/literature-sweep.md` · `/deep-dive` · AutoSearch · `academic-researcher`                               |
-| reviewing / merging                                    | `docs/workflows/review-and-merge.md` · `/pr-review` · `/logic-review`                                                  |
-| writing documentation                                  | `docs/workflows/documentation.md` · `codebase-documenter`, `doc-forge`, `readme-generator`, `onboarding-guide` plugins |
-| writing Python                                         | `python-best-practices` skill · `python-engineer` agent                                                                |
-| prompts / RAG / retrieval design                       | `llm-integration`, `prompt-engineering` skills · `llm-architect` agent                                                 |
-| comparing paper to codebase                            | `.claude/prompts/memocr-paper-codex-comparison.md` · `prompt-engineering` skill · structured mapping analysis          |
-| using MemOCR as a visual `EpisodeProducer` for fluxmem | `fluxmem/memocr_episodes.py` · `docs/adr/0003-memocr-fluxmem-integration.md` — not a retriever; `fluxmem/` has none    |
-| ending a session                                       | `/checkpoint` — claude-mem captures the rest automatically                                                             |
+| Task                | Reach for                                                    |
+| ------------------- | ------------------------------------------------------------ |
+| New experiment      | `docs/workflows/new-experiment.md` · `experiment-discipline` |
+| Compare runs        | `benchmarking-specialist` agent                              |
+| Debug metric change | `docs/workflows/debug-a-metric.md` → `/logic-review`         |
+| Unfamiliar code     | CodeGraph or serena symbol tools                             |
+| Repo-wide rename    | serena (LSP-accurate)                                        |
+| Design decision     | write an ADR (`/adr`)                                        |
+| Literature review   | `academic-researcher` agent                                  |
+| PR review           | `/pr-review` · `/logic-review`                               |
+| End session         | `/checkpoint`                                                |
 
-Rules in `.claude/rules/` are always active; you do not need to invoke them.
-`storage-invariants.md` is path-scoped to retriever/memory/config/experiment paths.
-
-## Do not reach for these
-
-Each was deliberately excluded. Re-adding them creates duplicate systems:
-
-| Don't                                                                                                                             | Because                                                                                               |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `explore` plugin                                                                                                                  | CodeGraph is already indexed here (`codegraph explore`), and serena does symbols properly             |
-| `claude-memory-kit`, `memory-bank` skills                                                                                         | claude-mem (installed, user scope) already owns cross-session memory                                  |
-| `continuous-learning` skill                                                                                                       | task-observer (installed) already does pattern capture                                                |
-| toolkit session/memory hooks (`session-start`, `context-loader`, `learning-log`, `pre-compact`, `session-end`, `suggest-compact`) | claude-mem + headroom already hold those events; adding these means two systems writing session state |
-| `post-edit-check.js` hook                                                                                                         | duplicates `lint-fix.js` on the same write — stale diagnostics at 2× latency                          |
-| `auto-test.js` hook                                                                                                               | would run pytest on save; `experiments/**` tests load 4B/8B models                                    |
-| Postgres/Redis/ERD skills and agents                                                                                              | every relational path in the repo is vendored mem0 **baseline** code, not the active store            |
+Rules in `.claude/rules/` are always active. Decisions go in `docs/adr/`.
 
 ## Installed elsewhere (user scope, not this repo)
 
 `claude-mem` (cross-session memory) · `headroom` (token compression proxy) · `task-observer`
 (skill-opportunity capture) · `claude-code-setup` · `omniroute` (MCP router) · CodeGraph CLI.
-See `docs/workflows/lightmem-tooling.md` for their operational detail. Adopted externals and their install
+`pro-workflow` (user-scope; self-correction memory, persistent wikis, `/wrap-up`, `/develop`, `/doctor`).
+See `docs/workflows/tooling.md` for their operational detail. Adopted externals and their install
 commands: `setup/install-external.sh`.
 
 ## Conventions
 
 - Conventional commits, enforced by a hook. `exp:` is a valid type for experiment-only changes.
+  Do not add `Co-Authored-By` trailers; commits are attributed via git user config.
 - Decisions become ADRs (`/adr`) — Nygard format, sequential, supersede rather than edit.
 - Diagrams are Mermaid in `docs/diagrams/`, so they render and diff in PRs.
 - Report what you verified and what you assumed (`.claude/rules/evidence-discipline.md`).
