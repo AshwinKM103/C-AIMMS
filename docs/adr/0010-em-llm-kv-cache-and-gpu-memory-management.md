@@ -112,5 +112,5 @@ Document the design decision and tradeoff (accuracy vs. memory) in an ADR when i
 
 ## Related
 
-- **ADR 0005:** EM-LLM is canonical segmentation source; its memory behavior affects HetRep performance.
-- **ADR 0007:** HG encoder uses EM-LLM output (turns); segmentation efficiency matters for Phase 2.
+- **ADR 0005:** HetRep architecture and EpisodeEncoder interface.
+- **ADR 0007:** HG encoder design; segmentation is independent per component.

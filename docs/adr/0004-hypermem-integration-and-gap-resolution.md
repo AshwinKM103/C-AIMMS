@@ -43,10 +43,9 @@ counts and stage roles are unchanged from the prior pass:
 | `eval.py`                         | 251   | orchestration/CLI                            |
 | `config.py`                       | 185   | `ExperimentConfig`                           |
 
-`EM-LLM` is vendored but not yet wired in. The dual-segmentation reconciliation from the first
-pass (EM-LLM primary, HyperMem's LLM boundary detector arbitrates low-confidence regions) is
-unchanged by this revision and is not repeated in full below — see the prior ADR text in git
-history if the segmentation section is needed; nothing in this revision touches it.
+`EM-LLM` is vendored as a submodule. HyperMem includes its own LLM-based segmentation (stages 1–3)
+for use in standalone experiments. Both remain available for research reference; this revision
+does not depend on either being integrated with fluxmem.
 
 ## Decision
 
@@ -381,5 +380,5 @@ from their current (pre-ADR-equivalent) defaults.
   core. This is a code-organization boundary, not a functionality boundary.
 - **G4 and G6 are experiments, not pre-approved defaults.** Weight fusion (G4) and per-level BM25
   (G6) require before/after LoCoMo comparisons; this ADR defines the experiment, not the outcome.
-- **Dual-segmentation (EM-LLM + HyperMem extractor fallback)** remains unchanged from the first
-  pass and is Low confidence, pending EM-LLM integration.
+- **Segmentation design:** HyperMem's independent LLM-based segmentation in stages 1–3 is documented
+  for reference; HyperMem remains available for standalone use or ablation studies.

@@ -13,9 +13,8 @@ in `.claude/rules/` (always-on standards), `docs/workflows/` (read on demand), a
 | ----------------------- | ----------------------------------------------------- |
 | `fluxmem/`              | Core method — flat STIM/MTEM/LTSM encoding pipeline   |
 | `hetrep/`               | Heterogeneous encoding (VS/HG/VC) upstream of fluxmem |
-| `HyperMem/` (submodule) | Hypergraph memory extraction (ADR 0004 fixes)         |
-| `MemOCR/` (submodule)   | Visual episode extraction and rendering               |
-| `EM-LLM/` (submodule)   | Surprise-based episode segmentation                   |
+| `HyperMem/` (submodule) | Hypergraph memory extraction (reference)              |
+| `MemOCR/` (submodule)   | Visual episode extraction and rendering (reference)   |
 | `docs/`                 | ADRs, diagrams, workflows, analysis                   |
 | `.claude/`              | Team config: rules, commands, agents, skills, hooks   |
 
@@ -23,7 +22,7 @@ in `.claude/rules/` (always-on standards), `docs/workflows/` (read on demand), a
 
 Python 3.11.15 (caimms env, canonical per ADR 0009) · torch >=2.7,<2.9 · sentence-transformers ·
 faiss · spacy · scikit-learn · pydantic 2 · pytest · ruff.
-Memory system = segmentation (EM-LLM) → encoding (HetRep: VS/HG/VC) → storage (fluxmem STIM/MTEM/LTSM).
+Memory system = encoding (HetRep: VS/HG/VC) → storage (fluxmem STIM/MTEM/LTSM).
 Components are composable; Phase 1 (VS) needs no LLM; Phases 2–3 (HG/VC) need serving infrastructure.
 
 **Setup:**

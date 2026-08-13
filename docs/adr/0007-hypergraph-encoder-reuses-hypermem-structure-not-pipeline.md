@@ -4,9 +4,8 @@
 
 Accepted — 2026-08-13 (revised). Sets the reuse strategy for Phase 2 of the hetrepv2 plan (`hetrep/hg/`,
 tasks T-11 through T-14). No `hetrep/hg/` code lands before this ADR; `hetrep/hg/adapter.py`
-implements the decision below. Clarifies that EM-LLM (surprise-based segmentation) is the canonical
-segmentation source for HetRep phases; HyperMem and MemOCR have independent segmentation that will
-not be used.
+implements the decision below. Documents the three independent segmentation methods in the C-AIMMS
+codebase and their intended uses.
 
 ## Context
 
@@ -19,17 +18,15 @@ importable without dragging in machinery HetRep's HG arm does not need."
 
 ### Three Independent Segmentation Methods (Audit Finding)
 
-An important clarification emerged: C-AIMMS contains three separate episode segmentation methods, none of which are fallbacks for each other. All are LLM-based (or fixed-window for MemOCR), so **EM-LLM is not a primary with automatic fallback**:
+C-AIMMS contains three separate episode segmentation methods in its vendored/submodule components, none of which are designed to fall back to each other:
 
-| Method                      | Source                                                           | Algorithm                                                                                                     | Notes                                                                                                                          |
-| --------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **EM-LLM (surprise-based)** | `EM-LLM/caimms_boundary_creator.py`, `similarity_refinement/`    | Tracks model-output surprise/KL-divergence from running window to detect episode boundaries                   | Canonical for HetRep phases per ADR 0005 data flow; EM-LLM segmentation → EpisodicUnit(turns=[...]) → HetRepEncoder            |
-| **HyperMem (LLM-based)**    | `HyperMem/stage1_memory_extraction.py:135–250`                   | Calls `ConvEpisodeExtractor.extract_episode()` per-message; uses LLM boundary detector + `should_wait` signal | Fully independent; never calls EM-LLM; exists because HyperMem's own pipeline needed segmentation before ADASTORE existed      |
-| **MemOCR (fixed-window)**   | `MemOCR/recurrent/impls/memory_img_final_only_triple.py:196–274` | Fixed-size chunk buffer (`chunk_size * (step + 1)`) on message arrivals                                       | Segmentation is naive chunking, not intelligent; combined with encoding (renders to canvas) in one `MemoryAgent.action()` call |
+| Method                      | Source                                                           | Algorithm                                                                                                     | Notes                                                                                                |
+| --------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **EM-LLM (surprise-based)** | `EM-LLM/caimms_boundary_creator.py`, `similarity_refinement/`    | Tracks model-output surprise/KV-divergence from running window to detect episode boundaries                   | Standalone implementation; not presently integrated with HetRep or fluxmem                           |
+| **HyperMem (LLM-based)**    | `HyperMem/stage1_memory_extraction.py:135–250`                   | Calls `ConvEpisodeExtractor.extract_episode()` per-message; uses LLM boundary detector + `should_wait` signal | Fully independent; built for HyperMem's own research pipeline                                        |
+| **MemOCR (fixed-window)**   | `MemOCR/recurrent/impls/memory_img_final_only_triple.py:196–274` | Fixed-size chunk buffer (`chunk_size * (step + 1)`) on message arrivals                                       | Fixed-window chunking; combined with encoding (renders to canvas) in one `MemoryAgent.action()` call |
 
-**Design consequence:** There is **no automatic fallback** between these. They are three parallel implementations chosen by the caller. HetRep uses EM-LLM exclusively (per ADR 0005's data flow). HyperMem and MemOCR ship their own segmentation for standalone use, but C-AIMMS research focuses on EM-LLM + HetRep + fluxmem composition.
-
-**ADR 0004 note:** This clarifies an open question left in ADR 0004's prose ("Dual-segmentation remains... pending EM-LLM integration"). The answer: three methods exist, no fallback chain assumed, EM-LLM is canonical for HetRep.
+**Design consequence:** These are three parallel implementations that are independent of each other. No fallback chain or automatic switching between them is assumed. Each component remains usable for standalone research or ablation studies.
 
 ### What is directly reusable
 
@@ -88,8 +85,7 @@ dependency.
 ## Decision
 
 **Reuse `structure.py` and `build_hypergraph()` directly, unmodified. Do not import or adapt
-HyperMem's extractors, stages, or pipeline glue. Treat EM-LLM as the canonical segmentation source
-for HetRep phases (per ADR 0005), not HyperMem's independent LLM-based segmentation.**
+HyperMem's extractors, stages, or pipeline glue.**
 
 `hetrep/hg/adapter.py` maps `EpisodicUnit` (fluxmem/HetRep's type) to HyperMem's `Episode`
 (`hypermem/types.py`) and back, so that `build_hypergraph()` can be called against
@@ -129,7 +125,6 @@ hermetic (`.claude/rules/testing.md`).
 - **Testable in isolation.** hetrep/hg/ can inject fakes; no LLM required for unit tests.
 - **Flexible extraction.** Different extractors can be swapped (HyperMem's, custom, or no-op for ablation).
 - **Extensible.** MemOCR or other extractors can implement the same Protocols.
-- **EM-LLM remains canonical.** No accidental dual-segmentation or fallback chains; architecture is explicit.
 
 ### Negative
 
@@ -140,13 +135,12 @@ hermetic (`.claude/rules/testing.md`).
 
 - **Extractor Protocol mismatch.** If HyperMem's extractors evolve (e.g., signature change), the Protocol must be updated. Mitigation: Protocol is versioned in hetrep/hg/; HyperMem adapter goes in HyperMem repo (ADR 0006).
 - **Build order dependency.** `build_hypergraph()` expects certain fields in Episode; if extractors don't populate them, build fails silently. Mitigation: assertions in hetrep/hg/encoder.py.
-- **Three segmentation methods can cause confusion.** Clarifying that EM-LLM is canonical helps, but documentation must be explicit everywhere (Phases 1–3 only use EM-LLM, HyperMem/MemOCR are parallel).
+- **Three independent segmentation methods.** Documentation should be explicit that these are parallel implementations, each available for standalone use.
 
 ## Related
 
 - **ADR 0003.** Dependency injection pattern (EntityExtractor in fluxmem).
-- **ADR 0004.** HyperMem integration and fixes; clarifies "dual-segmentation" question is resolved (EM-LLM canonical).
-- **ADR 0005.** HETREP architecture; HG is Phase 2; EM-LLM data flow.
+- **ADR 0004.** HyperMem integration and reference implementation.
+- **ADR 0005.** HETREP architecture; HG is Phase 2; segmentation/encoding boundary.
 - **ADR 0006.** HyperMem becomes a submodule; structure.py is importable.
-- **ADR 0010** (new): EM-LLM KV cache behavior and GPU memory management.
-- **ADR 0011** (new): MemOCR segmentation and training architecture.
+- **ADR 0011.** MemOCR segmentation and training architecture.

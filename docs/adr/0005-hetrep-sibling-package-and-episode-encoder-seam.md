@@ -99,7 +99,7 @@ class EpisodeEncoder(Protocol):
     """HETREP boundary (COLM §1.2, Alg. 1 line 4): enrich a segmented unit in place.
 
     Distinct from EpisodeProducer, which conflates segmentation with encoding.
-    Segmentation is ADASTORE's (COLM §1.3.1, EM-LLM); this is encoding only.
+    This is the encoding stage (COLM §1.2); segmentation is ADASTORE's responsibility (§1.3.1).
     """
     def encode(self, unit: EpisodicUnit) -> EpisodicUnit: ...
 ```
@@ -113,9 +113,9 @@ Full data flow per COLM Algorithm 1:
 
 ```
 raw dialogue
-  → EM-LLM surprise segmentation (§1.3.1)  → EpisodicUnit(turns=[...])
-  → HetRepEncoder.encode (§1.2)            → + embedding, hyperedge_density, visual_salience
-  → FormatSelector.predict (§1.3.3)        → primary_format
+  → segmentation (ADASTORE §1.3.1)  → EpisodicUnit(turns=[...])
+  → HetRepEncoder.encode (§1.2)    → + embedding, hyperedge_density, visual_salience
+  → FormatSelector.predict (§1.3.3)  → primary_format
   → select_merge_target / MTEM.add (§1.3)  → stored
   → ltsm.promote (§1.3.2)                  → consolidated
 ```
@@ -192,6 +192,6 @@ Once a format is chosen, COLM Eq. 1 says the selected representation should be s
 ## Related
 
 - **ADR 0003:** Episode producer seam; visual_salience placeholder rationale.
-- **ADR 0006:** HyperMem, MemOCR, EM-LLM become submodules (needed for HG/VC phases).
+- **ADR 0006:** HyperMem and MemOCR become submodules (needed for HG/VC phases).
 - **ADR 0007:** HG encoder reuses HyperMem.structure, not its pipeline.
 - **ADR 0008:** COLM-vs-component fidelity on embedding model and propagation.

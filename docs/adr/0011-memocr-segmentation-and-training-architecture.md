@@ -3,9 +3,9 @@
 ## Status
 
 Accepted — 2026-08-13. Documents MemOCR's independent segmentation and training pipeline, clarifying
-that MemOCR's segmentation is **not** surprise-based and that it is not used by HetRep (which uses
-EM-LLM). MemOCR remains available for standalone visual memory workloads and for fine-tuning experiments
-in Phase 3 if the Qwen2.5-VL-7B checkpoint proves insufficient.
+that MemOCR's segmentation is fixed-window based (not surprise-based). MemOCR remains available
+for standalone visual memory workloads and for fine-tuning experiments in Phase 3 if the
+Qwen2.5-VL-7B checkpoint proves insufficient.
 
 ## Context
 
@@ -24,16 +24,15 @@ MemOCR (`MemOCR/recurrent/impls/memory_img_final_only_triple.py`) is a visual me
    (lines 106–107), meaning the agent learns which memory drafts improve QA and gap-filling accuracy.
 
 **Segmentation design:** Fixed-window is not adaptive; it does not detect semantic episode boundaries.
-It is a deliberate simplification compared to EM-LLM's surprise-based method. MemOCR's own paper
-(not provided in audit scope) may justify this choice for visual memory (e.g., "fixed windows align
-with user interaction patterns"), but within C-AIMMS, EM-LLM's surprise detection is finer-grained.
+This is a deliberate design choice for visual memory — fixed windows may align better with
+user interaction patterns in visual rendering contexts. MemOCR remains available for standalone
+visual memory experiments and ablation studies.
 
 ## Decision
 
-### MemOCR is not used by HetRep; segmentation choice remains EM-LLM
+### MemOCR is independent; segmentation choice remains fixed-window
 
-Per ADR 0005's data flow and ADR 0007's clarification, **HetRep uses EM-LLM exclusively for
-segmentation.** MemOCR's fixed-window segmentation is orthogonal and remains available for:
+MemOCR's fixed-window segmentation is an independent design choice and remains available for:
 
 1. **Standalone visual memory experiments** (MemOCR as a self-contained system, not integrated with
    HetRep or fluxmem).
@@ -85,8 +84,8 @@ These are **not bugs**, just design constraints documented here for Phase 3 plan
 
 - **MemOCR is research-ready.** Training framework is proven (verl GRPO); fine-tuning is supported;
   released checkpoint (meituan/MemOCR-7B) is publicly available.
-- **Orthogonal to HetRep.** No coupling; MemOCR's segmentation design (fixed-window) does not conflict
-  with EM-LLM's (surprise-based). Can be evaluated separately.
+- **Independent implementation.** MemOCR's segmentation design (fixed-window) is standalone. Can be
+  evaluated separately or used in ablation studies.
 - **Flexible checkpoint management.** Can experiment with base model, released checkpoint, or
   fine-tuned variants independently.
 
@@ -96,9 +95,6 @@ These are **not bugs**, just design constraints documented here for Phase 3 plan
   slower than in-process Python rendering would be.
 - **Training compute cost.** GRPO with MemOCR-7B on GPU is expensive; Phase 3 experiments may need
   access to high-end hardware (A100/H100).
-- **Segmentation mismatch.** MemOCR's fixed-window chunking may not align well with surprise-based
-  boundaries from EM-LLM, creating mismatches in visual episode boundaries if both are used in same
-  experiment.
 
 ### Risks
 
@@ -110,7 +106,6 @@ These are **not bugs**, just design constraints documented here for Phase 3 plan
 
 ## Related
 
-- **ADR 0005:** EM-LLM is canonical segmentation for HetRep; MemOCR segmentation not used.
+- **ADR 0005:** HetRep architecture and EpisodeEncoder interface.
 - **ADR 0003:** MemOCREpisodeProducer sets `turns=[]` because MemOCR's encoding is visual, not turn-based.
 - **ADR 0008:** COLM's VC arm specifies layout-aware rendering; MemOCR is an implementation candidate.
-- **ADR 0010:** EM-LLM KV cache; MemOCR rendering (separate concern).
