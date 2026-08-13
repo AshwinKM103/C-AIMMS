@@ -1,5 +1,10 @@
 # Claude Code Toolkit — Component Analysis for C-AIMMS
 
+> **Stale as of 2026-08-11:** this audit was written while `LightMem/` (the vendored
+> `zjunlp/LightMem` fork) was still present in the repo. `LightMem/` has since been removed;
+> paths below like `LightMem/`, `src/lightmem/...` no longer exist. The conclusions about which
+> toolkit categories matter still hold — only the `lightmem`-specific file paths are stale.
+
 **Scope:** all 405 local components in `awesome-claude-code-toolkit/` **plus** all 344 third-party
 entries linked from its README — 749 components reviewed.
 **Project:** C-AIMMS — Cognitive AI Memory Architecture (Python, LLM-memory research, multi-person
@@ -13,14 +18,14 @@ components, did not know a Claude Code stack was already installed, and guessed 
 
 Grounded in the repo, not the brief:
 
-| Signal | Evidence | Consequence |
-|---|---|---|
-| LLM-memory research on a publication track | `LightMem/` (arXiv 2510.18866), `EM2Mem.md` / `FluxMem.md` / `StructMem.md`, `docs/COLM_*.pdf` | LLM/RAG/embedding/eval tooling scores high; REST/GraphQL/microservice tooling scores zero |
-| Python library + MCP server | `pyproject.toml`, `LightMem/mcp/`, `src/`, `tests/` | Python + MCP tooling in; Node-based `backend-developer` agent out as wrong language |
-| Benchmark-driven | `experiments/{longmemeval,locomo,egolife}/` | Experiment tracking, model evaluation, Jupyter MCP, benchmarking agents in |
-| Constrained hardware | `/home` near-full; models under `/mnt/ssd/users/durgesh/`; torch 2.8 + 4B/8B locals | Anything holding models resident or spending background tokens is a real cost, not a footnote |
-| Existing Claude Code stack | `LightMem/CLAUDE.md`: claude-mem, headroom, task-observer, claude-code-setup, omniroute, CodeGraph | Roughly a dozen "obvious" picks are duplicates |
-| Linux | `uname`: Linux 6.17 | ~35 macOS/Windows-only external tools eliminated outright |
+| Signal                                     | Evidence                                                                                           | Consequence                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| LLM-memory research on a publication track | `LightMem/` (arXiv 2510.18866), `EM2Mem.md` / `FluxMem.md` / `StructMem.md`, `docs/COLM_*.pdf`     | LLM/RAG/embedding/eval tooling scores high; REST/GraphQL/microservice tooling scores zero     |
+| Python library + MCP server                | `pyproject.toml`, `LightMem/mcp/`, `src/`, `tests/`                                                | Python + MCP tooling in; Node-based `backend-developer` agent out as wrong language           |
+| Benchmark-driven                           | `experiments/{longmemeval,locomo,egolife}/`                                                        | Experiment tracking, model evaluation, Jupyter MCP, benchmarking agents in                    |
+| Constrained hardware                       | `/home` near-full; models under `/mnt/ssd/users/durgesh/`; torch 2.8 + 4B/8B locals                | Anything holding models resident or spending background tokens is a real cost, not a footnote |
+| Existing Claude Code stack                 | `LightMem/CLAUDE.md`: claude-mem, headroom, task-observer, claude-code-setup, omniroute, CodeGraph | Roughly a dozen "obvious" picks are duplicates                                                |
+| Linux                                      | `uname`: Linux 6.17                                                                                | ~35 macOS/Windows-only external tools eliminated outright                                     |
 
 **A note on the toolkit's own numbers.** Its README advertises "176+ plugins, 135 agents". Most of
 the surplus is links to third-party repos, not shipped files. The clone contains **405 installable
@@ -32,16 +37,16 @@ components**; the other **344** are external links. This pass covers both, separ
 
 The first pass guessed. This is what is in the code.
 
-| Layer | Reality | Location |
-|---|---|---|
-| **Primary vector store** | **Qdrant**, `qdrant-client==1.15.1` pinned | `src/lightmem/factory/retriever/embeddingretriever/qdrant.py` |
-| Config defaults | `collection_name="lightmem"`, `embedding_model_dims=1024`, `path="/tmp/qdrant"`, `on_disk=False` | `src/lightmem/configs/retriever/embeddingretriever/qdrant.py` |
-| Graph memory | `networkx` | `lightmem/memory/graph.py`, `fluxmem/graph/`, `em2mem/memory/semantic_graph/` |
-| Layer persistence | `pickle` | `memories/layers/{amem,full_context,memzero,langmem}.py`, `em2mem/memory/visual/Memory.py` |
-| Sparse / hybrid | **FluxMem only** — weighted dense+BM25 fusion (`bm25_weight`, default 0.5) | `src/fluxmem/retrieval/semantic_retriever.py` |
-| Sparse in lightmem core | **does not exist** — `factory/retriever/contextretriever/bm25.py` is an empty 1-byte stub | — |
-| Optional | FAISS (`fluxmem` extra), ChromaDB (agentic_memory baseline) | `pyproject.toml` |
-| Vendored, inactive | SQLite `SQLiteManager` + ~20 mem0 adapters (pgvector, redis, milvus, weaviate…) | `baselines/mem0/**` — **no `sqlite3` in lightmem core at all** |
+| Layer                    | Reality                                                                                          | Location                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **Primary vector store** | **Qdrant**, `qdrant-client==1.15.1` pinned                                                       | `src/lightmem/factory/retriever/embeddingretriever/qdrant.py`                              |
+| Config defaults          | `collection_name="lightmem"`, `embedding_model_dims=1024`, `path="/tmp/qdrant"`, `on_disk=False` | `src/lightmem/configs/retriever/embeddingretriever/qdrant.py`                              |
+| Graph memory             | `networkx`                                                                                       | `lightmem/memory/graph.py`, `fluxmem/graph/`, `em2mem/memory/semantic_graph/`              |
+| Layer persistence        | `pickle`                                                                                         | `memories/layers/{amem,full_context,memzero,langmem}.py`, `em2mem/memory/visual/Memory.py` |
+| Sparse / hybrid          | **FluxMem only** — weighted dense+BM25 fusion (`bm25_weight`, default 0.5)                       | `src/fluxmem/retrieval/semantic_retriever.py`                                              |
+| Sparse in lightmem core  | **does not exist** — `factory/retriever/contextretriever/bm25.py` is an empty 1-byte stub        | —                                                                                          |
+| Optional                 | FAISS (`fluxmem` extra), ChromaDB (agentic_memory baseline)                                      | `pyproject.toml`                                                                           |
+| Vendored, inactive       | SQLite `SQLiteManager` + ~20 mem0 adapters (pgvector, redis, milvus, weaviate…)                  | `baselines/mem0/**` — **no `sqlite3` in lightmem core at all**                             |
 
 ### Two defaults that destroy data
 
@@ -83,23 +88,23 @@ destructive re-runs).
 `~/.claude/settings.json` has **no hooks**; every hook comes from a plugin, and they stack at
 runtime. The first pass would have added 16 more.
 
-| Event | Already firing | First pass proposed | Installed |
-|---|---|---|---|
-| SessionStart | claude-mem, headroom | session-start, context-loader | **none** |
-| PreToolUse | claude-mem, headroom | secret-scanner, commit-guard, pre-push-check, smart-approve, block-dev-server | **3** |
-| PostToolUse | claude-mem | lint-fix, auto-test, type-check, suggest-compact | **1** |
-| Stop / SessionEnd / PreCompact | claude-mem | stop-check, session-end, learning-log, pre-compact | **none** |
+| Event                          | Already firing       | First pass proposed                                                           | Installed |
+| ------------------------------ | -------------------- | ----------------------------------------------------------------------------- | --------- |
+| SessionStart                   | claude-mem, headroom | session-start, context-loader                                                 | **none**  |
+| PreToolUse                     | claude-mem, headroom | secret-scanner, commit-guard, pre-push-check, smart-approve, block-dev-server | **3**     |
+| PostToolUse                    | claude-mem           | lint-fix, auto-test, type-check, suggest-compact                              | **1**     |
+| Stop / SessionEnd / PreCompact | claude-mem           | stop-check, session-end, learning-log, pre-compact                            | **none**  |
 
 **Six reversals from the first pass:**
 
-| Reversed | Because |
-|---|---|
-| `claude-memory-kit` skill | claude-mem already owns cross-session memory |
-| `continuous-learning` skill | task-observer already does pattern capture |
-| `explore` plugin | CodeGraph is indexed here; serena does symbols properly |
-| 12 session/memory/test hooks | claude-mem + headroom hold those events |
-| `post-edit-check.js` | duplicates `lint-fix.js` on the same write — stale diagnostics at 2× latency |
-| `auto-test.js` | would run pytest on save; `experiments/**` tests load 4B/8B models |
+| Reversed                     | Because                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `claude-memory-kit` skill    | claude-mem already owns cross-session memory                                 |
+| `continuous-learning` skill  | task-observer already does pattern capture                                   |
+| `explore` plugin             | CodeGraph is indexed here; serena does symbols properly                      |
+| 12 session/memory/test hooks | claude-mem + headroom hold those events                                      |
+| `post-edit-check.js`         | duplicates `lint-fix.js` on the same write — stale diagnostics at 2× latency |
+| `auto-test.js`               | would run pytest on save; `experiments/**` tests load 4B/8B models           |
 
 ### The toolkit's hooks are broken as shipped
 
@@ -110,7 +115,7 @@ argv[2] they parse `{}`, find no `file_path`, and `process.exit(0)`. **All 20 si
 Four further defects in the four we wanted:
 
 1. `secret-scanner.js` reads the file **from disk** (`fs.readFileSync(filePath)`). On a `Write`
-   that is the *old* content — so the secret being written is never seen. Fixed to scan
+   that is the _old_ content — so the secret being written is never seen. Fixed to scan
    `tool_input.content` / `new_string` / `edits[].new_string`.
 2. Field paths are wrong: `input.file_path` should be `input.tool_input.file_path`.
 3. `commit-guard.js` emits top-level `{"decision":"block"}` — the PostToolUse shape. PreToolUse
@@ -129,16 +134,16 @@ changes.
 
 Selected **176** (43.5%). Condensed by function; the reasoning that changed is in §1–2.
 
-| Area | Selected | Rejected | Notes on the calls that matter |
-|---|---|---|---|
-| **Python dev** | `python-expert`, `python-best-practices`, `python-engineer`, `refactor-engine`, `refactoring-specialist`, `dead-code-finder`, `import-organizer`, `bug-detective`, **`debug-session`**, `error-detective`, `double-check`, `perf-profiler`, `memory-profiler`, `dependency-manager` ×2, `env-manager`, `regex-builder` | `backend-architect`, `backend-developer` (Node — wrong language), all REST/OpenAPI/contract tooling, `complexity-reducer` (redundant with `refactor-engine`), 7 DB components, 23 non-Python language agents | `debug-session`'s `/bisect` is the highest-value debugging tool here: bisect on the *metric*. `memory-profiler` confirmed to support Python `tracemalloc` |
-| **Experiments & metrics** | `experiment-tracker`, `model-evaluator`, `mlops-engineer`, `ml-engineer`, `benchmarking-specialist`, `data-visualization`, `analytics-reporter`, `test-results-analyzer`, `data-science.json`, `llm-cost.json` | `monitoring-setup` (Prometheus/Grafana — no SLO), `finance-tracker` (tracks engineer-hours, not API spend), `feature-engineer` (tabular framing), `growth-engineer` (product A/B, different meaning) | `experiment-tracker` is prompt-scaffolding, **not an MLflow/W&B client**. Kept explicitly as a discipline layer — seeds, dataset version, never-overwrite |
-| **LLM / research** | `llm-integration`, `prompt-engineering`, `ai-prompt-lab`, `rag-builder`, `embedding-manager`, `vector-database-engineer`, `llm-architect`, `ai-engineer`, `nlp-engineer`, `data-scientist`, `data-engineer`, `autoresearch-agent`, `academic-researcher`, `research-analyst`, `data-researcher`, `search-specialist`, `technology-scout`, `deep-dive`, `tool-evaluator`, `research.json`, `research.md` context | `prompt-optimizer` (redundant — `ai-prompt-lab` adds a test loop), 5 market/IP/threat research agents | `vector-database-engineer` confirmed by the Qdrant/FAISS/Chroma reality |
-| **Git & GitHub** | `smart-commit`, `changelog-gen`, `release-manager`, `git-flow`, `update-branch`, `create-worktrees`, `git-advanced`, `git-workflow-manager`, `github-issue-manager`, `fix-github-issue`, `fix-pr`, `ci-debugger`, `ci-cd-pipelines`, 7 git commands, `git-workflow.md` | `commit-commands` (auto-push fights `pre-push-check` and review-before-merge), `changelog-writer`, `linear-helper` (team uses GitHub), `slack-notifier` (token setup for a team already on GitHub) | |
-| **Review & testing** | `pr-reviewer`, `code-review-assistant`, `code-reviewer`, `test-writer`, `test-architect`, `test-results-analyzer`, `tdd-mastery`, `testing-strategies`, 5 test commands, `security-guidance`, 3 security commands | `code-guardian` (three-in-one, `/review` collision), `unit-test-generator`, `mutation-tester` (compute), `load-tester`/`performance-monitor`/`api-benchmarker` (RPS ≠ retrieval quality), 5 QA agents, `security-hardening` | `testing-strategies` earns its place for **property-based testing** of retrieval invariants |
-| **Docs & diagrams** | `adr-writer`, `doc-forge`, `code-explainer`, `readme-generator`, `onboarding-guide`, `documentation-engineer`, `technical-writer`, `code-architect`, `/diagram`, `data-visualization`, `vision-specialist`, 4 doc commands | `codebase-documenter` (mass auto-commenting = review churn), `api-reference`/`/api-docs`, `schema-designer` (ERDs describe relational schemas), `block-md-creation.js` (fights root-level design docs) | Mermaid into `docs/diagrams/` — text-diffable, renders in PRs |
-| **Team & memory** | `/memory-bank`, `/checkpoint`, `/wrap-up`, `context-manager`, `knowledge-synthesizer`, `performance-monitor`, `multi-agent-coordinator`, `dx-optimizer`, `discuss`, `plan`, `ultrathink`, `manage-skills`, `agents.md`, 4 contexts | `claude-memory-kit`, `continuous-learning` (**reversed** — see §2), `phoenix-prime-starter`, `task-coordinator`, `workflow-director`, `sprint-prioritizer` + 5 PM agents (team-size mismatch) | |
-| **Infra / frontend / domain** | `docker-helper`, `docker-best-practices`, `/dockerfile`, `/ci-pipeline`; frontend set held conditional | all 11 infrastructure agents, all 15 specialized-domain agents, cloud/K8s/mobile plugins, accessibility ×7 | Largest single rejection block: 26 agents with zero overlap with a Python research library |
+| Area                          | Selected                                                                                                                                                                                                                                                                                                                                                                                                        | Rejected                                                                                                                                                                                                                    | Notes on the calls that matter                                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Python dev**                | `python-expert`, `python-best-practices`, `python-engineer`, `refactor-engine`, `refactoring-specialist`, `dead-code-finder`, `import-organizer`, `bug-detective`, **`debug-session`**, `error-detective`, `double-check`, `perf-profiler`, `memory-profiler`, `dependency-manager` ×2, `env-manager`, `regex-builder`                                                                                          | `backend-architect`, `backend-developer` (Node — wrong language), all REST/OpenAPI/contract tooling, `complexity-reducer` (redundant with `refactor-engine`), 7 DB components, 23 non-Python language agents                | `debug-session`'s `/bisect` is the highest-value debugging tool here: bisect on the _metric_. `memory-profiler` confirmed to support Python `tracemalloc` |
+| **Experiments & metrics**     | `experiment-tracker`, `model-evaluator`, `mlops-engineer`, `ml-engineer`, `benchmarking-specialist`, `data-visualization`, `analytics-reporter`, `test-results-analyzer`, `data-science.json`, `llm-cost.json`                                                                                                                                                                                                  | `monitoring-setup` (Prometheus/Grafana — no SLO), `finance-tracker` (tracks engineer-hours, not API spend), `feature-engineer` (tabular framing), `growth-engineer` (product A/B, different meaning)                        | `experiment-tracker` is prompt-scaffolding, **not an MLflow/W&B client**. Kept explicitly as a discipline layer — seeds, dataset version, never-overwrite |
+| **LLM / research**            | `llm-integration`, `prompt-engineering`, `ai-prompt-lab`, `rag-builder`, `embedding-manager`, `vector-database-engineer`, `llm-architect`, `ai-engineer`, `nlp-engineer`, `data-scientist`, `data-engineer`, `autoresearch-agent`, `academic-researcher`, `research-analyst`, `data-researcher`, `search-specialist`, `technology-scout`, `deep-dive`, `tool-evaluator`, `research.json`, `research.md` context | `prompt-optimizer` (redundant — `ai-prompt-lab` adds a test loop), 5 market/IP/threat research agents                                                                                                                       | `vector-database-engineer` confirmed by the Qdrant/FAISS/Chroma reality                                                                                   |
+| **Git & GitHub**              | `smart-commit`, `changelog-gen`, `release-manager`, `git-flow`, `update-branch`, `create-worktrees`, `git-advanced`, `git-workflow-manager`, `github-issue-manager`, `fix-github-issue`, `fix-pr`, `ci-debugger`, `ci-cd-pipelines`, 7 git commands, `git-workflow.md`                                                                                                                                          | `commit-commands` (auto-push fights `pre-push-check` and review-before-merge), `changelog-writer`, `linear-helper` (team uses GitHub), `slack-notifier` (token setup for a team already on GitHub)                          |                                                                                                                                                           |
+| **Review & testing**          | `pr-reviewer`, `code-review-assistant`, `code-reviewer`, `test-writer`, `test-architect`, `test-results-analyzer`, `tdd-mastery`, `testing-strategies`, 5 test commands, `security-guidance`, 3 security commands                                                                                                                                                                                               | `code-guardian` (three-in-one, `/review` collision), `unit-test-generator`, `mutation-tester` (compute), `load-tester`/`performance-monitor`/`api-benchmarker` (RPS ≠ retrieval quality), 5 QA agents, `security-hardening` | `testing-strategies` earns its place for **property-based testing** of retrieval invariants                                                               |
+| **Docs & diagrams**           | `adr-writer`, `doc-forge`, `code-explainer`, `readme-generator`, `onboarding-guide`, `documentation-engineer`, `technical-writer`, `code-architect`, `/diagram`, `data-visualization`, `vision-specialist`, 4 doc commands                                                                                                                                                                                      | `codebase-documenter` (mass auto-commenting = review churn), `api-reference`/`/api-docs`, `schema-designer` (ERDs describe relational schemas), `block-md-creation.js` (fights root-level design docs)                      | Mermaid into `docs/diagrams/` — text-diffable, renders in PRs                                                                                             |
+| **Team & memory**             | `/memory-bank`, `/checkpoint`, `/wrap-up`, `context-manager`, `knowledge-synthesizer`, `performance-monitor`, `multi-agent-coordinator`, `dx-optimizer`, `discuss`, `plan`, `ultrathink`, `manage-skills`, `agents.md`, 4 contexts                                                                                                                                                                              | `claude-memory-kit`, `continuous-learning` (**reversed** — see §2), `phoenix-prime-starter`, `task-coordinator`, `workflow-director`, `sprint-prioritizer` + 5 PM agents (team-size mismatch)                               |                                                                                                                                                           |
+| **Infra / frontend / domain** | `docker-helper`, `docker-best-practices`, `/dockerfile`, `/ci-pipeline`; frontend set held conditional                                                                                                                                                                                                                                                                                                          | all 11 infrastructure agents, all 15 specialized-domain agents, cloud/K8s/mobile plugins, accessibility ×7                                                                                                                  | Largest single rejection block: 26 agents with zero overlap with a Python research library                                                                |
 
 **Rules:** 11 installed (+ 2 written). **Commands:** 34. **Agents:** 35. **Skills:** 15 (+ 2 written).
 **Hooks:** 4 (rewritten). **MCP:** 5 configs merged into 8 servers. **Contexts:** 4. **Templates:** 3.
@@ -153,29 +158,29 @@ clusters were compared head-to-head instead of block-rejected.
 
 ### 4.1 Adopted (10)
 
-| Component | Why it wins | Cost / dependencies |
-|---|---|---|
-| **claudebase** | Syncs `.mcp.json` + `.claude/{settings,agents,commands,skills,hooks,rules,agent-memory}` to a private GitHub repo. `shared/` base + `profiles/<name>/` overlay; blocks API keys / PEM / Bearer on push; blocks push if another machine pushed since your last sync; keeps 10 versions | `gh`, `jq`, `git`, `bash`. Never syncs conversations, logs, or `settings.local.json` |
-| **logic-lens** | Behavioural review by execution tracing: Premises → Trace → Divergence → Trigger → Remedy, risk codes L1–L9 (state mutation, control-flow escape, callee-contract mismatch, async races). Full Python | zero deps, optional `.logic-lens.yaml` |
-| **serena** | Real **LSP language servers**: `find_symbol`, `find_referencing_symbols`, type hierarchy, and symbol-level **edits** — rename / move / inline / safe-delete. 40+ languages | `uv tool install -p 3.13 serena-agent`. **MCP server — zero hooks** |
-| **AutoSearch** | 40 channels including **arXiv, PubMed, OpenAlex, DBLP**; deduped, ranked, every result carries a source URL; most channels keyless | `npx autosearch-ai`, `autosearch doctor` |
-| **Prism Scanner** | Security-scans agent skills / plugins / MCP servers: 39+ rules, AST taint tracking, A–F grade | `pip install prism-scanner`. **Run before the other installs** |
-| **ccusage** | Offline spend and quota totals from local JSONL, zero API calls | 11.5k★, `npx ccusage` |
-| **cc-cost** | Answers a *different* question: prompt-cache hit rate, tool-call distribution, top expensive turns, `--diagnose` naming the three cost drivers | single-file Python 3.9+, zero deps |
-| **PRISM** | Answers a *third* question: CLAUDE.md adherence and re-read cost (a real finding of theirs: 6738% re-read cost), attention-curve decay, emits **diff-format CLAUDE.md fixes** | `pip install prism-cc`, Py3.11+, read-only |
-| **claude-hud** | Terminal statusline via the native API: context-window bar, quota burn, active subagents, todo %, branch, token speed | Node 18+, Linux confirmed, **zero hooks** |
-| **notify** | Desktop notification on completion — one of the few with explicit Linux `notify-send` support | duration filtering, git context |
+| Component         | Why it wins                                                                                                                                                                                                                                                                           | Cost / dependencies                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **claudebase**    | Syncs `.mcp.json` + `.claude/{settings,agents,commands,skills,hooks,rules,agent-memory}` to a private GitHub repo. `shared/` base + `profiles/<name>/` overlay; blocks API keys / PEM / Bearer on push; blocks push if another machine pushed since your last sync; keeps 10 versions | `gh`, `jq`, `git`, `bash`. Never syncs conversations, logs, or `settings.local.json` |
+| **logic-lens**    | Behavioural review by execution tracing: Premises → Trace → Divergence → Trigger → Remedy, risk codes L1–L9 (state mutation, control-flow escape, callee-contract mismatch, async races). Full Python                                                                                 | zero deps, optional `.logic-lens.yaml`                                               |
+| **serena**        | Real **LSP language servers**: `find_symbol`, `find_referencing_symbols`, type hierarchy, and symbol-level **edits** — rename / move / inline / safe-delete. 40+ languages                                                                                                            | `uv tool install -p 3.13 serena-agent`. **MCP server — zero hooks**                  |
+| **AutoSearch**    | 40 channels including **arXiv, PubMed, OpenAlex, DBLP**; deduped, ranked, every result carries a source URL; most channels keyless                                                                                                                                                    | `npx autosearch-ai`, `autosearch doctor`                                             |
+| **Prism Scanner** | Security-scans agent skills / plugins / MCP servers: 39+ rules, AST taint tracking, A–F grade                                                                                                                                                                                         | `pip install prism-scanner`. **Run before the other installs**                       |
+| **ccusage**       | Offline spend and quota totals from local JSONL, zero API calls                                                                                                                                                                                                                       | 11.5k★, `npx ccusage`                                                                |
+| **cc-cost**       | Answers a _different_ question: prompt-cache hit rate, tool-call distribution, top expensive turns, `--diagnose` naming the three cost drivers                                                                                                                                        | single-file Python 3.9+, zero deps                                                   |
+| **PRISM**         | Answers a _third_ question: CLAUDE.md adherence and re-read cost (a real finding of theirs: 6738% re-read cost), attention-curve decay, emits **diff-format CLAUDE.md fixes**                                                                                                         | `pip install prism-cc`, Py3.11+, read-only                                           |
+| **claude-hud**    | Terminal statusline via the native API: context-window bar, quota burn, active subagents, todo %, branch, token speed                                                                                                                                                                 | Node 18+, Linux confirmed, **zero hooks**                                            |
+| **notify**        | Desktop notification on completion — one of the few with explicit Linux `notify-send` support                                                                                                                                                                                         | duration filtering, git context                                                      |
 
 ### 4.2 Adopted as lessons — ported into rules, not installed (6)
 
-| Source | What was taken |
-|---|---|
+| Source                             | What was taken                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **claude-agentic-coding-playbook** | Hooks beat instructions (>95% vs 50–90% compliance); the research loop Question→Collect→Synthesize→Close alongside Explore→Plan→Code→Verify→Commit; two-hypothesis minimum; numbered observations with sources. Its 35+ hooks and `node:sqlite` knowledge DB would collide with claude-mem, so nothing was installed |
-| **GateGuard** | Verify the data schema against real records before writing code that assumes it. Their evidence is weak — **N=3, self-scored, admitted bias, +2.0 not the advertised +2.25** — but the failure it names is exactly how a silent metric bug is born, and the check is free |
-| **obey** | The Stop-hook completion checklist, as a rule. Its 17 hooks are genuinely cheap (~10ms PreToolUse) but it keeps a parallel rule store at `~/.config/obey/`, fighting git-backed config |
-| **paul-graham-skills** | `distrust-the-surface`, `mark-what-you-don't-know`, `change-method-not-goal` — epistemics that matter more in research than in product code |
-| **claude-code-blueprint** | **Model tiering** (Opus/Sonnet/Haiku per agent — a direct cost lever) and **path-scoped rules** (a rule loads only on matching globs). Explicitly "a template to copy from", zero deps |
-| **spartan-ai-toolkit** / **GAAI** | Spartan's 3-layer memory (Index always-loaded → Topics on-demand → Transcripts grep-only) is independent validation of the modular CLAUDE.md chosen here. GAAI contributes backlog-as-contract and the discovery≠delivery split; both are markdown+YAML, git-committed, no SDK |
+| **GateGuard**                      | Verify the data schema against real records before writing code that assumes it. Their evidence is weak — **N=3, self-scored, admitted bias, +2.0 not the advertised +2.25** — but the failure it names is exactly how a silent metric bug is born, and the check is free                                            |
+| **obey**                           | The Stop-hook completion checklist, as a rule. Its 17 hooks are genuinely cheap (~10ms PreToolUse) but it keeps a parallel rule store at `~/.config/obey/`, fighting git-backed config                                                                                                                               |
+| **paul-graham-skills**             | `distrust-the-surface`, `mark-what-you-don't-know`, `change-method-not-goal` — epistemics that matter more in research than in product code                                                                                                                                                                          |
+| **claude-code-blueprint**          | **Model tiering** (Opus/Sonnet/Haiku per agent — a direct cost lever) and **path-scoped rules** (a rule loads only on matching globs). Explicitly "a template to copy from", zero deps                                                                                                                               |
+| **spartan-ai-toolkit** / **GAAI**  | Spartan's 3-layer memory (Index always-loaded → Topics on-demand → Transcripts grep-only) is independent validation of the modular CLAUDE.md chosen here. GAAI contributes backlog-as-contract and the discovery≠delivery split; both are markdown+YAML, git-committed, no SDK                                       |
 
 ### 4.3 Evaluate later, with triggers (7)
 
@@ -191,16 +196,16 @@ detection, `/session-resume` — things claude-mem does not do, but 11 more skil
 
 #### Memory (13 systems) → claude-mem + git-committed files
 
-| System | Storage | Team-shareable | Reported | Runtime cost |
-|---|---|---|---|---|
-| **claude-mem** *(installed)* | `~/.claude-mem/` SQLite+FTS5+Chroma, **user-global** | ❌ **none documented** | — | 5 hooks, already paid |
-| **Cortex** | SQLite default; Postgres+pgvector for teams | ⚠️ shared Postgres, never git | LongMemEval **98.2% R@10 / 0.915 MRR**, LoCoMo, BEAM; 2 arXiv papers | 9 hooks; embedding model **+ FlashRank cross-encoder resident per session**; consolidation every 6h; **the autonomous wiki worker is a Claude agent on a schedule — recurring token spend** |
-| **axme-code** | `.axme-code/` markdown+YAML **in repo** | ✅ if un-gitignored | LongMemEval 89.2% E2E / 97.8% R@5; ToolEmu 100% | 2 hooks — but **alpha, 14★, 1 fork** |
-| **knowledge-graph** | `.kg/` + per-module CLAUDE.md | ✅ | — | bash+jq, ~4 hooks |
+| System                       | Storage                                              | Team-shareable                | Reported                                                             | Runtime cost                                                                                                                                                                                |
+| ---------------------------- | ---------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **claude-mem** _(installed)_ | `~/.claude-mem/` SQLite+FTS5+Chroma, **user-global** | ❌ **none documented**        | —                                                                    | 5 hooks, already paid                                                                                                                                                                       |
+| **Cortex**                   | SQLite default; Postgres+pgvector for teams          | ⚠️ shared Postgres, never git | LongMemEval **98.2% R@10 / 0.915 MRR**, LoCoMo, BEAM; 2 arXiv papers | 9 hooks; embedding model **+ FlashRank cross-encoder resident per session**; consolidation every 6h; **the autonomous wiki worker is a Claude agent on a schedule — recurring token spend** |
+| **axme-code**                | `.axme-code/` markdown+YAML **in repo**              | ✅ if un-gitignored           | LongMemEval 89.2% E2E / 97.8% R@5; ToolEmu 100%                      | 2 hooks — but **alpha, 14★, 1 fork**                                                                                                                                                        |
+| **knowledge-graph**          | `.kg/` + per-module CLAUDE.md                        | ✅                            | —                                                                    | bash+jq, ~4 hooks                                                                                                                                                                           |
 
 Cortex wins on measured retrieval. It was still rejected: recurring background LLM spend competes
 with the experiment budget these cost tools exist to protect, two models sit resident alongside
-torch 2.8 and the 4B/8B locals on a box whose `/home` is near-full, and it *still* cannot git-commit
+torch 2.8 and the 4B/8B locals on a box whose `/home` is near-full, and it _still_ cannot git-commit
 memories. Its degraded mode disables vector search — removing exactly what made it win.
 
 **claude-mem's own docs confirm it is user-global with no team sharing**, so the team layer is
@@ -212,56 +217,61 @@ LoCoMo, the benchmarks already in `experiments/`. See `docs/related-work-agent-m
 
 #### Codebase index/search (6) → keep CodeGraph, **add serena**
 
-| Tool | Method | Local | Verdict |
-|---|---|---|---|
-| CodeGraph *(installed)* | AST + knowledge graph, CLI | ✅ | keep |
-| **serena** | LSP servers; symbol-level **edits** | ✅ | **add** — does what CodeGraph does *plus* accurate rename/move/inline. MCP, no hooks |
-| claude-context | BM25+dense, AST chunking | ❌ | reject — **requires Milvus/Zilliz Cloud + an OpenAI embeddings key**. A paid cloud vector DB, for a team running its own Qdrant |
-| reporecall | tree-sitter, local MiniLM, call-graph | ✅ | reject — best-evidenced claim in the whole survey (75.4% fewer tokens; 1,306-file repo, 30 pre-registered queries, no model calls) but adds 2 hooks and overlaps CodeGraph |
+| Tool                    | Method                                | Local | Verdict                                                                                                                                                                    |
+| ----------------------- | ------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CodeGraph _(installed)_ | AST + knowledge graph, CLI            | ✅    | keep                                                                                                                                                                       |
+| **serena**              | LSP servers; symbol-level **edits**   | ✅    | **add** — does what CodeGraph does _plus_ accurate rename/move/inline. MCP, no hooks                                                                                       |
+| claude-context          | BM25+dense, AST chunking              | ❌    | reject — **requires Milvus/Zilliz Cloud + an OpenAI embeddings key**. A paid cloud vector DB, for a team running its own Qdrant                                            |
+| reporecall              | tree-sitter, local MiniLM, call-graph | ✅    | reject — best-evidenced claim in the whole survey (75.4% fewer tokens; 1,306-file repo, 30 pre-registered queries, no model calls) but adds 2 hooks and overlaps CodeGraph |
 
 #### Hook-heavy enforcement (9) → none installed, two ideas ported
+
 See §4.2. `VibeGuard` (13 hooks / 88 rules), `cc-discipline`, `SpecLock`, `cc-agents-md`, and the
 temporal plugins add no capability the 4 guards + rules do not cover, at real per-call cost.
 
 #### Cost/session analytics (13) → three installed
-`ccusage` / `cc-cost` / `PRISM` answer *how much*, *why this session*, and *is the CLAUDE.md
-working*. PRISM specifically earns its slot because this setup ships a routing CLAUDE.md — it
+
+`ccusage` / `cc-cost` / `PRISM` answer _how much_, _why this session_, and _is the CLAUDE.md
+working_. PRISM specifically earns its slot because this setup ships a routing CLAUDE.md — it
 measures whether that file is being re-read wastefully. The other 10 are redundant.
 
 #### HUDs (5) → claude-hud
+
 A HUD is **not a GUI** — it renders through the native statusline API, in the terminal, at zero
 hook cost. Only one statusline can be active, so claude-hud excludes cc-hud, craft-statusline,
 cc-tempo, and codachi.
 
 #### Config/routing managers (9) → claudebase covers it
+
 `claude-snapshot` (tar.gz export/restore) is redundant against claudebase's git history + profiles.
 `claude-overlay`, `cc-switch`, `claude-code-router`, `gemini-bridge`, the AWS gateway and
 `systemprompt-template` are redundant against **omniroute**, already installed. `LynxPrompt` is a
 hosted platform for the same job.
 
-**The one genuine gap: `agent-dotfiles`** — it syncs rules and skills *cross-tool* (Cursor, Copilot,
+**The one genuine gap: `agent-dotfiles`** — it syncs rules and skills _cross-tool_ (Cursor, Copilot,
 Codex), a different axis from claudebase's cross-machine sync. Adopt only if a teammate uses a
 non-Claude agent. It handles rules and skills only — not hooks, not MCP.
 
 #### Opinionated full setups (17) → patterns salvaged, nothing installed
+
 See §4.2. Spartan's docs do not confirm a non-overwriting install; blueprint explicitly warns not
 to run Claude Code inside its repo.
 
 ### 4.5 Rejected blocks (~320)
 
-| Block | ~n | Reason |
-|---|---|---|
-| macOS/Windows-only GUIs, statuslines, menu-bar apps | 35 | **Wrong platform** — this is Linux |
-| Domain verticals (SEO ×6, marketing/social ×12, PM/product ×8, finance/crypto ×5, healthcare, embedded, packaging, gaming, life-science) | ~50 | Out of scope |
-| Multi-agent orchestration (vibe-kanban, KANBAII, amux, Watchfire, ORCH, Ruflo, nexus-agents, myclaude, oh-my-claudecode, paco, production-grade, great_cto, Axiom, AuraKit, wshobson/agents, idea-factory, claude-code-templates) | 17 | Team-size mismatch / too complex |
-| Opinionated full setups | 17 | Would overwrite this configuration |
-| Memory systems | 13 | claude-mem + git chosen; Cortex on runtime cost |
-| Cost dashboards beyond the three | 10 | Redundant |
-| Hook-heavy enforcement | 9 | Hook budget; two ideas ported as rules |
-| Config/routing managers | 8 | claudebase + omniroute |
-| Codebase index/search | 4 | CodeGraph + serena |
-| Notification/cosmetic | ~12 | Out of scope (except `notify`) |
-| Discovery registries, misc utilities | ~20 | Marginal |
+| Block                                                                                                                                                                                                                             | ~n  | Reason                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ----------------------------------------------- |
+| macOS/Windows-only GUIs, statuslines, menu-bar apps                                                                                                                                                                               | 35  | **Wrong platform** — this is Linux              |
+| Domain verticals (SEO ×6, marketing/social ×12, PM/product ×8, finance/crypto ×5, healthcare, embedded, packaging, gaming, life-science)                                                                                          | ~50 | Out of scope                                    |
+| Multi-agent orchestration (vibe-kanban, KANBAII, amux, Watchfire, ORCH, Ruflo, nexus-agents, myclaude, oh-my-claudecode, paco, production-grade, great_cto, Axiom, AuraKit, wshobson/agents, idea-factory, claude-code-templates) | 17  | Team-size mismatch / too complex                |
+| Opinionated full setups                                                                                                                                                                                                           | 17  | Would overwrite this configuration              |
+| Memory systems                                                                                                                                                                                                                    | 13  | claude-mem + git chosen; Cortex on runtime cost |
+| Cost dashboards beyond the three                                                                                                                                                                                                  | 10  | Redundant                                       |
+| Hook-heavy enforcement                                                                                                                                                                                                            | 9   | Hook budget; two ideas ported as rules          |
+| Config/routing managers                                                                                                                                                                                                           | 8   | claudebase + omniroute                          |
+| Codebase index/search                                                                                                                                                                                                             | 4   | CodeGraph + serena                              |
+| Notification/cosmetic                                                                                                                                                                                                             | ~12 | Out of scope (except `notify`)                  |
+| Discovery registries, misc utilities                                                                                                                                                                                              | ~20 | Marginal                                        |
 
 ---
 
@@ -290,11 +300,11 @@ topics on demand, archive grep-only.
 
 ## 6. Statistics
 
-| Population | Reviewed | In use | Rate |
-|---|---|---|---|
-| Local toolkit | 405 | 176 | 43.5% |
-| External catalog | 344 | 16 (10 installed + 6 ported as lessons) | 4.7% |
-| **Combined** | **749** | **192** | **25.6%** |
+| Population       | Reviewed | In use                                  | Rate      |
+| ---------------- | -------- | --------------------------------------- | --------- |
+| Local toolkit    | 405      | 176                                     | 43.5%     |
+| External catalog | 344      | 16 (10 installed + 6 ported as lessons) | 4.7%      |
+| **Combined**     | **749**  | **192**                                 | **25.6%** |
 
 External also carries 7 "evaluate later" with explicit triggers. The local rate is high because the
 toolkit is generic and cheap to adopt; the external rate is low because most of that catalog is
@@ -350,19 +360,19 @@ setup/install-external.sh        the 10 adopted externals, Prism Scanner first
 
 ### Verified, with results
 
-| Check | Result |
-|---|---|
-| `secret-scanner` on a pending Write containing `sk-proj-…` | **DENY** — "line 1: OpenAI/Anthropic-style key" |
-| `secret-scanner` on `os.environ["OPENAI_API_KEY"]` | silent, exit 0 |
-| `commit-guard` on `"Fixed the thing."` | **DENY** — 3 findings (no type, trailing period, capitalised) |
-| `commit-guard` on `"feat(retriever): add on-disk qdrant persistence"` | silent, exit 0 |
-| `pre-push-check` on `git push --force origin main` | **DENY** |
-| `pre-push-check` on `git push origin HEAD:main` | **ASK** (refspec destination parsed correctly) |
-| `pre-push-check` on `git push origin feat-fluxmem` | allowed |
-| `lint-fix` on a messy `.py` | ruff 0.15.0 fixed formatting **and removed the unused import** |
-| `.mcp.json` | valid JSON, 8 servers, zero literal credentials |
+| Check                                                                 | Result                                                         |
+| --------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `secret-scanner` on a pending Write containing `sk-proj-…`            | **DENY** — "line 1: OpenAI/Anthropic-style key"                |
+| `secret-scanner` on `os.environ["OPENAI_API_KEY"]`                    | silent, exit 0                                                 |
+| `commit-guard` on `"Fixed the thing."`                                | **DENY** — 3 findings (no type, trailing period, capitalised)  |
+| `commit-guard` on `"feat(retriever): add on-disk qdrant persistence"` | silent, exit 0                                                 |
+| `pre-push-check` on `git push --force origin main`                    | **DENY**                                                       |
+| `pre-push-check` on `git push origin HEAD:main`                       | **ASK** (refspec destination parsed correctly)                 |
+| `pre-push-check` on `git push origin feat-fluxmem`                    | allowed                                                        |
+| `lint-fix` on a messy `.py`                                           | ruff 0.15.0 fixed formatting **and removed the unused import** |
+| `.mcp.json`                                                           | valid JSON, 8 servers, zero literal credentials                |
 
-`pre-push-check` initially flagged `feat-fluxmem` because it fell back to the *current* branch
+`pre-push-check` initially flagged `feat-fluxmem` because it fell back to the _current_ branch
 instead of reading the explicit refspec — caught by the test above and fixed before commit.
 
 ### Not executed, and why
@@ -376,7 +386,7 @@ instead of reading the explicit refspec — caught by the test above and fixed b
 
 ### A real bug found while installing: prism-cc and prism-scanner collide
 
-Both PyPI packages install a top-level module named `prism` with *different* CLI entry points
+Both PyPI packages install a top-level module named `prism` with _different_ CLI entry points
 (`prism.cli:app` vs `prism.cli:main`). Installing both into one venv silently merges their
 `site-packages/prism/` directories — confirmed by inspecting the merged package, which contained
 files from both (`scanner.py`/`rules/` alongside `dashboard.py`/`advisor.py`), with whichever
@@ -401,7 +411,7 @@ plugin` CLI installs and enables marketplace plugins non-interactively. All four
 Prism Scanner (step 0, as designed) graded all four **F (Critical) × 3, C (Caution) × 1** — a
 19-finding total across CRITICAL/HIGH/MEDIUM severities. Every one was manually verified against
 source and found to be a false positive: pattern matching without taint context (a doc string or a
-test-grading regex containing a suspicious substring) and, most notably, a unicode *sanitizer* in
+test-grading regex containing a suspicious substring) and, most notably, a unicode _sanitizer_ in
 claude-hud flagged for containing the injection characters it strips. claude-hud's `credential_read`
 finding was checked further than the rest — confirmed zero network primitives and zero runtime
 dependencies anywhere in its source, so even the flagged local auth-display read has no path to
@@ -413,8 +423,8 @@ exfiltrate anything. Full finding-by-finding writeup and raw scanner JSON:
 Auditing `LightMem/` for the two footguns produced three findings:
 
 1. **The team has already been bitten by this.**
-   `memory_toolkits/memories/layers/naive_rag.py:147` carries the comment: *"Key: enable Qdrant
-   on_disk; otherwise 'file created but points=0' occurs often"*. The LoCoMo harness
+   `memory_toolkits/memories/layers/naive_rag.py:147` carries the comment: _"Key: enable Qdrant
+   on_disk; otherwise 'file created but points=0' occurs often"_. The LoCoMo harness
    (`experiments/locomo/`) sets `on_disk=True` explicitly in three places. The rule is not
    hypothetical — it documents a lesson already paid for, so the next person does not re-learn it.
 2. **`embedding_model_dims` is not always 1024.** `experiments/locomo/retrievers.py:26` uses
@@ -440,7 +450,7 @@ configuration surface looks live; the implementation is not there.
    adopted (currently "evaluate later," not installed).
 7. **Project-scoped `.mcp.json` servers require one-time interactive approval** — this is documented,
    intentional behavior (`claude mcp list` shows `⏸ Pending approval (run claude to approve)` for
-   all 8 until someone runs `claude` interactively in this project and accepts). This is *why* they
+   all 8 until someone runs `claude` interactively in this project and accepts). This is _why_ they
    don't appear in the VS Code extension's `/mcp` panel — pending servers aren't shown there at all,
    only connected/failed/needs-auth ones. Approve by running `claude` (CLI or a fresh VS Code
    session) in this project once. To pre-approve for the whole team without the per-person prompt,
@@ -470,8 +480,8 @@ configuration surface looks live; the implementation is not there.
       names came from the toolkit's `mcp-configs/*.json` templates, which are stale.
       **Security note, not just a bug**: the unscoped npm package `mcp-server-fetch` (no `@modelcontextprotocol/`
       scope) — the name someone would naturally reach for as a replacement — is a **deliberate
-      typosquat/confusion-canary**, self-described in its own README as *"Security research canary
-      — not for production use... npx-confusion, bug-bounty"*. Do not install it. A legitimate,
+      typosquat/confusion-canary**, self-described in its own README as _"Security research canary
+      — not for production use... npx-confusion, bug-bounty"_. Do not install it. A legitimate,
       audited replacement for sqlite exists (`mcp-server-sqlite-npx`, Smithery + MseeP badges) but
       was not added — it needs its own Prism Scanner pass before being trusted, and there is no
       current use case driving the need for it yet.
@@ -484,17 +494,18 @@ configuration surface looks live; the implementation is not there.
 
     `.mcp.json` now holds the four that are actually confirmed working:
     `filesystem`, `github`, `memory`, `serena`.
+
 11. **The `autosearch` MCP entry was broken and has been removed.** `autosearch-ai`'s installer
-   (npx step, §5) auto-registers a project-scoped MCP server via `~/.claude.json`, separate from
-   this repo's `.mcp.json`. It failed to connect: its own dependency resolution pulled in a package
-   named `mcp` at version `2.0.0` with no `fastmcp` submodule — inconsistent with the real MCP
-   Python SDK's API, which `autosearch`'s own code imports (`from mcp.server.fastmcp import
+    (npx step, §5) auto-registers a project-scoped MCP server via `~/.claude.json`, separate from
+    this repo's `.mcp.json`. It failed to connect: its own dependency resolution pulled in a package
+    named `mcp` at version `2.0.0` with no `fastmcp` submodule — inconsistent with the real MCP
+    Python SDK's API, which `autosearch`'s own code imports (`from mcp.server.fastmcp import
    FastMCP`). This is a bug in `autosearch-ai`'s packaging, not in this repo's config. The
-   `autosearch` CLI itself is unaffected and confirmed working (27/40 channels ready, arXiv/PubMed/
-   OpenAlex/DBLP all keyless-ready) — only its bundled MCP server was broken. Removed via
-   `claude mcp remove autosearch` rather than hand-patched, since patching a third party's
-   dependency pin isn't something to maintain here.
-7. `serena project create` also generated `LightMem/.serena/{project.yml,project.local.yml}`.
-   `project.yml` is meant to be versioned (per its own header comment); left uncommitted since
-   `LightMem/` is a separate repo with its own review process — a decision for whoever next
-   commits there, not made unilaterally here.
+    `autosearch` CLI itself is unaffected and confirmed working (27/40 channels ready, arXiv/PubMed/
+    OpenAlex/DBLP all keyless-ready) — only its bundled MCP server was broken. Removed via
+    `claude mcp remove autosearch` rather than hand-patched, since patching a third party's
+    dependency pin isn't something to maintain here.
+12. `serena project create` also generated `LightMem/.serena/{project.yml,project.local.yml}`.
+    `project.yml` is meant to be versioned (per its own header comment); left uncommitted since
+    `LightMem/` is a separate repo with its own review process — a decision for whoever next
+    commits there, not made unilaterally here.

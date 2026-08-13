@@ -1,12 +1,15 @@
 # Nested repos / vendor clones — tracked separately, not part of this repo
-LightMem/
 awesome-claude-code-toolkit/
 
 # Secrets and local overrides
 **/.env
 .env.*
 !.env.example
-.claude/settings.local.json
+
+# Claude Code configuration and session data (synced separately to private config repo)
+.claude/
+.claude-profile/
+.serena/
 
 # Research artifacts that must never be committed
 *.pkl
@@ -23,6 +26,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
 
 # OS / editor
 .DS_Store

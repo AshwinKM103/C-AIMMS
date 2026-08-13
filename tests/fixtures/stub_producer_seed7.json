@@ -1,0 +1,80 @@
+[
+  {
+    "episode_id": "episode-0",
+    "primary_format": "HG",
+    "created_at": 0.0,
+    "last_access": 2.0,
+    "turns": [
+      {
+        "turn_id": "episode-0-turn-0",
+        "user": "Bob weather regarding the the about the then about",
+        "assistant": "Bob weather regarding the the about the then about",
+        "timestamp": 0.0
+      },
+      {
+        "turn_id": "episode-0-turn-1",
+        "user": "Alice weather the the later later the a the",
+        "assistant": "Alice weather the the later later the a the",
+        "timestamp": 1.0
+      },
+      {
+        "turn_id": "episode-0-turn-2",
+        "user": "Acme Corp weather the about the a regarding regarding about",
+        "assistant": "Acme Corp weather the about the a regarding regarding about",
+        "timestamp": 2.0
+      }
+    ]
+  },
+  {
+    "episode_id": "episode-1",
+    "primary_format": "VS",
+    "created_at": 1000.0,
+    "last_access": 1002.0,
+    "turns": [
+      {
+        "turn_id": "episode-1-turn-0",
+        "user": "Acme Corp sports the a the about a then later",
+        "assistant": "Acme Corp sports the a the about a then later",
+        "timestamp": 1000.0
+      },
+      {
+        "turn_id": "episode-1-turn-1",
+        "user": "Bob sports about then about regarding a the about",
+        "assistant": "Bob sports about then about regarding a the about",
+        "timestamp": 1001.0
+      },
+      {
+        "turn_id": "episode-1-turn-2",
+        "user": "Acme Corp sports then the about regarding the about the",
+        "assistant": "Acme Corp sports then the about regarding the about the",
+        "timestamp": 1002.0
+      }
+    ]
+  },
+  {
+    "episode_id": "episode-2",
+    "primary_format": "HG",
+    "created_at": 2000.0,
+    "last_access": 2002.0,
+    "turns": [
+      {
+        "turn_id": "episode-2-turn-0",
+        "user": "Tokyo travel then later about later then then a",
+        "assistant": "Tokyo travel then later about later then then a",
+        "timestamp": 2000.0
+      },
+      {
+        "turn_id": "episode-2-turn-1",
+        "user": "Bob travel the about then about later then regarding",
+        "assistant": "Bob travel the about then about later then regarding",
+        "timestamp": 2001.0
+      },
+      {
+        "turn_id": "episode-2-turn-2",
+        "user": "Tokyo travel about the the about later a then",
+        "assistant": "Tokyo travel about the the about later a then",
+        "timestamp": 2002.0
+      }
+    ]
+  }
+]

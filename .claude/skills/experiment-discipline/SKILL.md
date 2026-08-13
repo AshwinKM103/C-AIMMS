@@ -24,14 +24,17 @@ Anything missing here means the number cannot be defended in review.
 
 ```markdown
 # <benchmark> — <slug>
-Date: YYYY-MM-DD   Commit: <sha>   Author:
+
+Date: YYYY-MM-DD Commit: <sha> Author:
 
 ## Hypothesis
+
 What this run tests, and what result would falsify it.
 
 ## Configuration
-- Subsystem: lightmem | fluxmem | em2mem | baseline:<name>
-- Memory manager: openai | deepseek | ollama | vllm | transformers  (+ model id)
+
+- Subsystem: fluxmem | baseline:<name>
+- Memory manager: openai | deepseek | ollama | vllm | transformers (+ model id)
 - Embedding model: <path from EMBEDDING_MODEL_PATH>, dims: 1024
 - Vector store: qdrant path=<...>, on_disk=<bool>, collection=<...>, distance=COSINE
 - Pre-compressor: llmlingua_2 | entropy | none
@@ -41,12 +44,15 @@ What this run tests, and what result would falsify it.
 - Dataset version / split: <...>
 
 ## Environment
+
 conda env, torch/transformers versions, GPU, commit sha of any modified baseline
 
 ## Metrics
+
 | metric | value | n | notes |
 
 ## Result
+
 Confirmed / falsified / inconclusive — and why.
 ```
 
@@ -66,18 +72,15 @@ Confirmed / falsified / inconclusive — and why.
 
 Do this before theorising (see `.claude/rules/evidence-discipline.md`):
 
-1. Did the store get wiped? `on_disk=False` on an existing path silently `rmtree`s it —
-   the classic cause of "recall collapsed for no reason". See the `qdrant-ops` skill.
-2. Did the embedding model or its dims change without recreating the collection?
-3. `/bisect` (debug-session) across commits — bisect on the *metric*, not on a crash.
-4. `/logic-review` (logic-lens) the metric-computation path. This is the failure mode that
+1. `/bisect` (debug-session) across commits — bisect on the _metric_, not on a crash.
+2. `/logic-review` (logic-lens) the metric-computation path. This is the failure mode that
    matters most here: code that runs clean and reports the wrong number. Linters and mypy
    cannot see it.
-5. Only then form two competing hypotheses and test them.
+3. Only then form two competing hypotheses and test them.
 
 ## Benchmarks and external baselines
 
 `longmemeval`, `locomo`, `egolife` are the harnesses in-repo. Two external systems publish on the
 same benchmarks and are tracked as comparison points in `docs/related-work-agent-memory.md`:
 Cortex (LongMemEval 98.2% R@10 / 0.915 MRR; also LoCoMo, BEAM) and axme-code (LongMemEval 89.2%
-E2E / 97.8% R@5). Cite their numbers as *reported by them* — we have not reproduced either.
+E2E / 97.8% R@5). Cite their numbers as _reported by them_ — we have not reproduced either.
