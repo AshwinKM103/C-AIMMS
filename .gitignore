@@ -5,10 +5,11 @@ awesome-claude-code-toolkit/
 **/.env
 .env.*
 !.env.example
-.claude/settings.local.json
 
 # Claude Code configuration and session data (synced separately to private config repo)
+.claude/
 .claude-profile/
+.serena/
 
 # Research artifacts that must never be committed
 *.pkl
