@@ -51,7 +51,7 @@ runner in this file. The actual CLI entry point for evaluation is
 (`python3 taskutils/memory_eval/run_custom.py`), which in turn requires a Ray cluster
 (`MemOCR/README.md:151-167`) and a merged HF-format checkpoint under `results/<exp>/.../actor`
 (`eval.sh:6-19`, calling `scripts/merge_ckpt.sh` if not already merged). "Consult
-`memory_img_final_only_triple.py`" in the investigation brief finds the *agent implementation*,
+`memory_img_final_only_triple.py`" in the investigation brief finds the _agent implementation_,
 not a standalone script — this is a load-bearing distinction for the test plan below.
 
 **Rendering is not per-episode in this variant.** `MemoryAgent.action()` only calls
@@ -92,8 +92,8 @@ confirming ADR 0011's "Rendering remains HTTP-based" finding still holds, and ad
 client-side dependency is a bare `requests.post` with no circuit breaker beyond 3 retries, so a
 down render server surfaces as an exception after ~3 seconds, not a silent failure (correcting
 ADR 0011's "Rendering server crashes silently" risk note for this specific client path — the
-*server* dying mid-render inside its own thread pool may still drop output silently, but the
-*client's* view of a fully-down server is an exception, not silence).
+_server_ dying mid-render inside its own thread pool may still drop output silently, but the
+_client's_ view of a fully-down server is an exception, not silence).
 
 ### HyperMem's LoCoMo dataset is not vendored
 
@@ -134,14 +134,14 @@ this check (real code change) — it is not a runtime-swappable dependency as cu
 
 ### HyperMem
 
-| Stage | Entry point | Can run without fluxmem/EM-LLM/MemOCR? | Hard external deps |
-| --- | --- | --- | --- |
-| 1 (extraction) | `hypermem/main/stage1_memory_extraction.py` | Yes — imports only `hypermem.*` (`stage1:33-41`) | LLM API (OpenRouter, per `config.py:102-109`); LoCoMo JSON (**missing**, see Context) |
-| 2 (hypergraph) | `hypermem/main/stage2_hypergraph_extraction.py` | Yes, per ADR 0007's audit (pure function `build_hypergraph`, `hypergraph_extractor.py`) | LLM API (extractors call inline, per ADR 0007 Context §4) |
-| 3 (indexing) | `hypermem/main/stage3_hypergraph_index.py` | Yes | Embedding server (`localhost:11810`, Qwen3-only); NLTK data (auto-downloads if missing, `stage3:48-58`) |
-| 4 (retrieval) | `hypermem/main/stage4_hypergraph_retrieval.py` | Yes | Embedding + reranker servers (`localhost:11810`/`:12810`) |
-| 5 (response) | `hypermem/main/stage5_response.py` | Yes, but out of scope per ADR 0004 ("removed from active import paths") | LLM API |
-| 6 (eval/scoring) | `hypermem/main/stage6_eval.py` | Yes — dataset-agnostic per ADR 0004 | Judge LLM API |
+| Stage            | Entry point                                     | Can run without fluxmem/EM-LLM/MemOCR?                                                  | Hard external deps                                                                                      |
+| ---------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1 (extraction)   | `hypermem/main/stage1_memory_extraction.py`     | Yes — imports only `hypermem.*` (`stage1:33-41`)                                        | LLM API (OpenRouter, per `config.py:102-109`); LoCoMo JSON (**missing**, see Context)                   |
+| 2 (hypergraph)   | `hypermem/main/stage2_hypergraph_extraction.py` | Yes, per ADR 0007's audit (pure function `build_hypergraph`, `hypergraph_extractor.py`) | LLM API (extractors call inline, per ADR 0007 Context §4)                                               |
+| 3 (indexing)     | `hypermem/main/stage3_hypergraph_index.py`      | Yes                                                                                     | Embedding server (`localhost:11810`, Qwen3-only); NLTK data (auto-downloads if missing, `stage3:48-58`) |
+| 4 (retrieval)    | `hypermem/main/stage4_hypergraph_retrieval.py`  | Yes                                                                                     | Embedding + reranker servers (`localhost:11810`/`:12810`)                                               |
+| 5 (response)     | `hypermem/main/stage5_response.py`              | Yes, but out of scope per ADR 0004 ("removed from active import paths")                 | LLM API                                                                                                 |
+| 6 (eval/scoring) | `hypermem/main/stage6_eval.py`                  | Yes — dataset-agnostic per ADR 0004                                                     | Judge LLM API                                                                                           |
 
 **Success metrics (correctness, not accuracy):**
 
@@ -176,17 +176,17 @@ ADR's standalone test plan is proposing to fill, not something already covered.
 
 ### MemOCR
 
-| Component | Entry point | Standalone (no fluxmem/EM-LLM/HyperMem)? | Hard external deps |
-| --- | --- | --- | --- |
-| Rendering | `md2img/markdown_api_server.py` (server) + `recurrent/impls/call_md_renderer.py` (client) | Yes, as a two-process pair | Playwright + Chromium (`markdown_api_server.py:16,42-56`) |
-| Memory agent | `recurrent/impls/memory_img_final_only_triple.py::MemoryAgent` | No — requires verl's `RAgent`/`RDataset`/rollout loop, not directly invocable | verl, Ray, a tokenizer/processor matching a Qwen-VL checkpoint (`:179` asserts `'vl' in tokenizer.name_or_path.lower()`) |
-| Evaluation CLI | `taskutils/memory_eval/run_custom.py` via `scripts/eval.sh` | No — hard-requires a merged local checkpoint (see Context) and a Ray cluster | Ray, GPU, HF checkpoint, render server |
+| Component      | Entry point                                                                               | Standalone (no fluxmem/EM-LLM/HyperMem)?                                      | Hard external deps                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Rendering      | `md2img/markdown_api_server.py` (server) + `recurrent/impls/call_md_renderer.py` (client) | Yes, as a two-process pair                                                    | Playwright + Chromium (`markdown_api_server.py:16,42-56`)                                                                |
+| Memory agent   | `recurrent/impls/memory_img_final_only_triple.py::MemoryAgent`                            | No — requires verl's `RAgent`/`RDataset`/rollout loop, not directly invocable | verl, Ray, a tokenizer/processor matching a Qwen-VL checkpoint (`:179` asserts `'vl' in tokenizer.name_or_path.lower()`) |
+| Evaluation CLI | `taskutils/memory_eval/run_custom.py` via `scripts/eval.sh`                               | No — hard-requires a merged local checkpoint (see Context) and a Ray cluster  | Ray, GPU, HF checkpoint, render server                                                                                   |
 
 **What "end-to-end" means for MemOCR, corrected against the brief's assumption:** the brief frames
 it as "input dialogue → fixed-window segmentation → render to image → output memory images."
 Verified: segmentation (fixed-window chunk buffering) happens inside `MemoryAgent.action()`
-(`:196-274`, chunk slicing at `:240`), but per the Context section's finding, *rendering in the
-`final_only` variant happens once, at the end, over the accumulated memory text* — not once per
+(`:196-274`, chunk slicing at `:240`), but per the Context section's finding, _rendering in the
+`final_only` variant happens once, at the end, over the accumulated memory text_ — not once per
 chunk. "End-to-end" for this specific file is: dialogue → N chunk-conditioned memory-drafting LLM
 calls (no image per chunk) → one render call over the final memory → one boxed answer. Whether a
 non-final-only sibling implementation exists that renders per-chunk (matching the brief's original
@@ -220,6 +220,101 @@ running server, not verified line-by-line here); `recurrent/test/test_pad_tensor
 directory listing; `memory_img_final_only_triple.py` has no co-located test file, unlike every
 HyperMem stage file which has at least one test targeting a specific gap-fix.
 
+## Paper Fidelity Analysis
+
+This section documents all known deviations between C-AIMMS's vendored components and their source
+papers. Deviations are organized by component and paper, with evidence citations and the status of
+each gap. This serves as the authoritative record of what "paper-faithful implementation" requires
+for both HyperMem and MemOCR.
+
+### HyperMem Deviations from Yue et al. 2025 (HyperMem paper)
+
+**Status: Partially Addressed by ADR 0004 Gap Fixes (G1–G8)**
+
+| #   | Deviation                                                                                                         | COLM Paper Ref     | Status                                                      | Evidence                                                                                                                               | Mitigation                                                                      |
+| --- | ----------------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| H1  | Topic aggregation skips retrieval-seeded candidate discovery (§3.2.2)                                             | Not paper-faithful | Documented limitation, lower ROI                            | ADR 0004 G1 (`stage2_hypergraph_extraction.py` does direct LLM matching instead of BM25 pre-filter)                                    | Implement BM25/dense pre-filter before LLM matching (future work, not blocking) |
+| H2  | Topic creation conflates Case 1 (Initialization) vs. Case 2 (Topic Creation); missing similarity-threshold branch | Not paper-faithful | **FIXED in ADR 0004 Phase 2**                               | ADR 0004 G2 (`topic_extractor.py:318,452,701,824` now gate topic creation on confidence threshold)                                     | Requires empirical threshold tuning on LoCoMo (currently TBD)                   |
+| H3  | `should_wait` signal computed but discarded at stage1                                                             | Not paper-faithful | **FIXED in ADR 0004 Phase 1**                               | ADR 0004 G3 (`stage1_memory_extraction.py:176` now wires `should_wait` into buffer logic)                                              | Control flow distinction now threaded; fixes extraction diagnostics             |
+| H4  | Hyperedge weights computed at extraction but discarded at retrieval                                               | Not paper-faithful | **MECHANISM IMPLEMENTED, NOT EVALUATED** (ADR 0004 Phase 3) | ADR 0004 G4 (`stage4_hypergraph_retrieval.py:683,706,798,821` has `fuse_hyperedge_weights` function, gated by config, default `False`) | Run LoCoMo before/after comparison; decide whether fusion justifies LLM cost    |
+| H5  | Reranker uses `episode_description` (long) not `summary` (short)                                                  | Not paper-faithful | **FIXED in ADR 0004 Phase 2**                               | ADR 0004 G5 (both `stage4_hypergraph_retrieval.py` reranking calls now use `text_field="summary"`)                                     | Verified `summary` is LLM-generated (not truncation) before flip                |
+| H6  | Single pooled BM25 corpus across Topic/Episode/Fact levels instead of per-level                                   | Silent divergence  | **MECHANISM IMPLEMENTED, NOT EVALUATED** (ADR 0004 Phase 3) | ADR 0004 G6 (`stage3_hypergraph_index.py` has `bm25_indexing_mode="per_level"` variant)                                                | Run LoCoMo per-level vs. pooled comparison; decide default                      |
+| H7  | Config defaults (top_k, reranker) diverge from paper                                                              | Not paper-faithful | **FIXED in ADR 0004 Phase 1**                               | ADR 0004 G7 (`config.py:52-54` now `topic_top_k=10, episode_top_k=10` per paper; `use_reranker=True`)                                  | No further mitigation needed                                                    |
+| H8  | No tests in vendored HyperMem code; active baseline runs untested                                                 | Process gap        | **FIXED in ADR 0004 Phase 4**                               | ADR 0004 G8 (22 new tests across `HyperMem/tests/`, `pytest tests/ -q` → `22 passed`)                                                  | Tests land in same PR as fixes (Phases 1-3)                                     |
+
+**Rolled-up Paper Fidelity Status for HyperMem:**
+
+- **H1:** Lower-priority limitation; does not affect retrieval correctness, only cost
+- **H2, H3, H5, H7:** ✅ **FULLY FIXED** (implemented and merged)
+- **H4, H6:** ✅ **MECHANISM IMPLEMENTED**, ⚠️ **PENDING EVALUATION** (default still off; Phase 3 LoCoMo runs required before deciding)
+- **H8:** ✅ **TEST COVERAGE ADDED** (22 tests verify gap fixes)
+
+### HyperMem Deviations from COLM Paper
+
+**Status: Recorded as Design Target for Phase 2-3 (ADR 0008)**
+
+These are conflicts between HyperMem's implementation choices and COLM's specification, _not_ gaps in
+HyperMem's fidelity to its own paper. Per ADR 0008, COLM is the authoritative spec whenever it conflicts with
+a reused component; HetRep must adapt the component, never adapt COLM.
+
+| #   | COLM Spec                                                                                   | HyperMem Code                                                                                                         | HetRep Choice                                                        | Evidence                                                                                            | Status                                                     |
+| --- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| C1  | Embedding model: **all-MiniLM-L6-v2** (384-d, COLM §1.2.3)                                  | Qwen3-Embedding-4B (HTTP, hardcoded at `:55-56`)                                                                      | **all-MiniLM-L6-v2** via `sentence-transformers`, loaded from `.env` | ADR 0008 row 1; `embedding_provider.py:55-56` raises `ValueError` if model not containing `"Qwen3"` | ✅ **DESIGNED FOR PHASE 1** (`hetrep/vs/encoder.py`)       |
+| C2  | Retrieval: **ANN (faiss) + BM25 hybrid, RRF-fused** (COLM §1.2.3)                           | Brute-force `np.dot(doc_vecs, query_vec)` (no faiss, line `:27-52`)                                                   | **faiss ANN** + BM25 + RRF per COLM                                  | ADR 0008 row 2; no faiss in HyperMem's `embedding_provider.py`                                      | 📋 **DESIGNED FOR ITERRET (FUTURE ADR)**, not HetRep scope |
+| C3  | Propagation: **Plain unweighted average** (COLM Eq. 3: `φ'(e_j) = (1/\|N(e_j)\|) Σ φ(e_k)`) | Softmax-weighted sum (`stage3_hypergraph_index.py:650-692`, `torch.softmax(weights_tensor, dim=0)` then weighted sum) | **Plain unweighted average** exactly per Eq. 3                       | ADR 0008 row 3                                                                                      | ✅ **DESIGNED FOR PHASE 2** (`hetrep/hg/propagation.py`)   |
+
+**Rolled-up Paper Fidelity Status for COLM Alignment:**
+
+- **C1:** ✅ Phase 1 (`hetrep/vs/encoder.py`) will implement COLM-spec embedding
+- **C2:** 📋 Recorded as design target for whoever implements ITERRET; out of HetRep scope
+- **C3:** ✅ Phase 2 (`hetrep/hg/propagation.py`) will implement COLM-spec propagation
+
+### MemOCR Deviations from Shi et al. 2026 (MemOCR paper)
+
+**Status: Partially Characterized; B7 Blocker Requires Investigation**
+
+| # | Deviation | Paper Spec | Current Code | Status | Evidence | Mitigation |
+| --- | --- | --- | --- | --- | --- |
+| M1 | Rendering behavior: per-episode vs. final-only | General description implies per-episode (ADR 0011 Context §1-2: "Each buffered episode is drafted...and rendered to an image") | `memory_img_final_only_triple.py:220-254` renders only at final turn; per-chunk code commented out | **TWO VARIANTS EXIST** | `memory_img.py:240` calls `batch_generate_images` per chunk; `memory_img_final_only_triple.py:243` skips it ("FINAL_ONLY mode") | **B7 BLOCKER:** Confirm which variant is paper-faithful; test plan must target correct file |
+| M2 | Rendering server infrastructure | HTTP-based Playwright/Chrome | `markdown_api_server.py:16,42-56` launches Chromium headless per-thread; `call_md_renderer.py:12-14` is HTTP client | Paper does not specify determinism; C-AIMMS gets non-deterministic pixel-level rendering | ADR 0014 Context §3; ADR 0011 Risks: "Chrome may render slightly differently on different systems or with different font/driver versions" | Document as inherent constraint; run same episode twice may produce pixel-different images (acceptable for now) |
+| M3 | Entry point: standalone invocation | No specification given | `MemoryAgent` inherits `RAgent`, requires verl's rollout loop; no `__main__` block | Not paper-faithful | ADR 0014 Context §2 (`:15,153`); no standalone runner in file | **B3 BLOCKER:** Extract chunk/template logic to unit-testable path, or build minimal verl harness (heavy lift for integration test) |
+| M4 | Checkpoint path: released vs. locally-trained | Paper cites meituan/MemOCR-7B as released checkpoint | `eval.sh:6-19` hardcodes locally-trained path (`results/memocr/...`); README documents HF checkpoint only as training start point, not eval path | Documented gap | ADR 0014 Context §2; `eval.sh` has no `MODEL_NAME` variable pointing to HF checkpoint | **B5 BLOCKER:** Test whether `MODEL_NAME=meituan/MemOCR-7B` works directly (cheap experiment) |
+| M5 | Retrieval stage | None (fixed-window chunking, single artifact per sample) | No retrieval code anywhere under `MemOCR/`; confirmed by file listing | **ARCHITECTURAL GAP: NOT A FIDELITY ISSUE** | ADR 0014 Retrieval Gap Analysis; ADR 0011 Consequences: "Memory is one evolving artifact per sample rather than an indexed store queried at read time" | No mitigation needed for MemOCR isolation testing; document explicitly if cross-component comparison needed |
+| M6 | Segmentation: fixed-window vs. surprise-based | Fixed-window as design choice (ADR 0011 Context §1) | `memory_img_final_only_triple.py:196-274` buffer slicing (`chunk_size * (step + 1)`) | **PAPER-FAITHFUL: DESIGNED CHOICE** | ADR 0011 Decision §1 (fixed-window is deliberate for visual memory); no contradiction with Shi et al. | No mitigation; segmentation design is independent per ADR 0011 |
+
+**Rolled-up Paper Fidelity Status for MemOCR:**
+
+- **M1:** ⚠️ **B7 BLOCKER** — Two variants exist; unclear which is paper-faithful
+- **M2:** ✅ **ACCEPTABLE CONSTRAINT** — Non-determinism is inherent to HTTP Playwright rendering, documented
+- **M3:** ⚠️ **B3 BLOCKER** — No standalone entry point; requires verl harness or logic extraction
+- **M4:** ⚠️ **B5 BLOCKER** — Checkpoint path undocumented; cheap experiment to test
+- **M5:** ✅ **ARCHITECTURAL DIFFERENCE, NOT GAP** — MemOCR has no retrieval by design; document in comparisons
+- **M6:** ✅ **PAPER-FAITHFUL** — Fixed-window segmentation is independent design, not deviation
+
+### Summary: What "Paper-Faithful Implementation" Requires
+
+**For HyperMem (Yue et al. 2025 + COLM):**
+
+1. ✅ All 8 ADR 0004 gap fixes (H1-H8) implemented
+2. ✅ HyperMem G2, G3, G5, G7 are fully fixed and merged
+3. ⚠️ HyperMem G4 (weight fusion) and G6 (per-level BM25) mechanisms implemented but NOT YET EVALUATED (Phase 3 LoCoMo runs pending)
+4. ✅ COLM-spec embedding (`all-MiniLM-L6-v2`) designed for Phase 1 (not using Qwen3-Embedding-4B)
+5. ✅ COLM-spec propagation (plain average, not softmax) designed for Phase 2
+
+**For MemOCR (Shi et al. 2026):**
+
+1. ✅ M2 (rendering non-determinism) is acceptable, documented
+2. ✅ M6 (fixed-window segmentation) is paper-faithful design choice
+3. ⚠️ M1 (rendering per-chunk vs. final-only) requires B7 blocker resolution
+4. ⚠️ M3 (no standalone entry point) is a test harness blocker, not a fidelity issue
+5. ⚠️ M4 (checkpoint path) is a cheap experiment to resolve via B5
+6. ✅ M5 (no retrieval) is architectural difference, acceptable if documented
+
+**Execution Prerequisites:**
+
+- **HyperMem:** Complete Phase 3 LoCoMo runs (G4/G6) to enable/disable mechanisms; all Phases 1-4 (testing) merged
+- **MemOCR:** Resolve B7 (which variant?), B5 (checkpoint path), B3 (entry point) before attempting integration test
+
 ## Retrieval Gap Analysis
 
 **HyperMem retrieval (stages 3-4) is embedded in the pipeline, not external**, and is the active
@@ -244,15 +339,15 @@ measured" when it is in fact "not applicable."
 
 ## Blockers & Mitigations
 
-| # | Blocker | Component | Evidence | Mitigation |
-| --- | --- | --- | --- | --- |
-| B1 | LoCoMo dataset not vendored (`HyperMem/data/locomo10.json` absent) | HyperMem | Direct search, no match anywhere under `C-AIMMS/` | Fetch LoCoMo-10 separately, or hand-construct a 3-10 message synthetic conversation matching `load_locomo_raw_data`'s expected schema (`stage1_memory_extraction.py:55-`) for isolation testing — the standalone test plan above deliberately proposes the synthetic route to avoid a full-dataset dependency for a correctness-only check |
-| B2 | Embedding/reranker HTTP servers required, hardcoded to Qwen3 | HyperMem | `embedding_provider.py:55-56`; `config.py:39-42,92-95` | Stand up `scripts/serve_embedding.sh`/`serve_reranker.sh` for the isolation test; no swap-in fallback exists without editing `embedding_provider.py`'s model-name check, which is a code change outside this ADR's plan-only scope |
-| B3 | `MemoryAgent` has no standalone entry point; only invocable via verl's rollout loop | MemOCR | No `__main__` block in `memory_img_final_only_triple.py`; class inherits `RAgent`, consumes `DataProto` | Either build a minimal verl-rollout harness scoped to just this agent (heavier), or extract the pure-Python chunk/template logic into a unit-testable function ahead of the RL-specific plumbing (lighter, but changes the file — a real implementation task for a future ADR, not this one) |
-| B4 | Render server is a hard, unstubbed dependency | MemOCR | `call_md_renderer.py:12-28`, no mock server in repo | Run `markdown_api_server.py` locally for the isolation test (Chrome/Playwright install is a one-time setup cost, per `MemOCR/README.md:113-130`); a stub is possible in principle (swap the HTTP call for a canned PNG) but does not exist today and is not proposed here since it would test nothing about MemOCR's real rendering behavior |
-| B5 | Released checkpoint (`meituan/MemOCR-7B`)'s path into `eval.sh` is undocumented | MemOCR | `eval.sh:6-19` hardcodes a locally-trained checkpoint path; no script references the HF checkpoint by name | **TBD: needs investigation** — attempt pointing `MODEL_NAME` directly at a `huggingface-cli`-downloaded `meituan/MemOCR-7B` snapshot (already HF-format, so `merge_ckpt.sh` may be skippable) as the first concrete test, before assuming either that it works or that it doesn't |
-| B6 | GPU + Ray cluster required for any MemOCR run at all | MemOCR | `README.md:151-167` (Ray cluster setup), `eval.sh` (GPU-sized `MODEL_TP=4`) | No mitigation short of the required hardware; this is a cost/scheduling constraint, not a code gap — flag as a prerequisite for whoever executes this plan, not something to work around |
-| B7 | `memory_img_final_only_triple.py` may not be the render-per-episode variant the brief assumed | MemOCR | `:220-254`, final-only render branch vs. commented-out per-chunk render | **TBD: needs investigation** — enumerate `MemOCR/recurrent/impls/*.py` for a per-chunk-rendering sibling before committing to which file the standalone test plan should target |
+| #   | Blocker                                                                             | Component | Evidence                                                                                                    | Mitigation                                                                                                                                                                                                                                                                                                                                 |
+| --- | ----------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B1  | LoCoMo dataset not vendored (`HyperMem/data/locomo10.json` absent)                  | HyperMem  | Direct search, no match anywhere under `C-AIMMS/`                                                           | Fetch LoCoMo-10 separately, or hand-construct a 3-10 message synthetic conversation matching `load_locomo_raw_data`'s expected schema (`stage1_memory_extraction.py:55-`) for isolation testing — the standalone test plan above deliberately proposes the synthetic route to avoid a full-dataset dependency for a correctness-only check |
+| B2  | Embedding/reranker HTTP servers required, hardcoded to Qwen3                        | HyperMem  | `embedding_provider.py:55-56`; `config.py:39-42,92-95`                                                      | Stand up `scripts/serve_embedding.sh`/`serve_reranker.sh` for isolation testing. **NOTE:** Qwen3 is HyperMem's design choice, not C-AIMMS's. For HyperMem's own pipeline testing, accept Qwen3. For COLM-faithful implementation (HetRep Phase 1), use all-MiniLM-L6-v2 (see Paper Fidelity Analysis, C1)                                  |
+| B3  | `MemoryAgent` has no standalone entry point; only invocable via verl's rollout loop | MemOCR    | No `__main__` block in `memory_img_final_only_triple.py`; class inherits `RAgent`, consumes `DataProto`     | Extract chunk/template logic to unit-testable function (lighter), or build minimal verl harness (heavier). This is a test-harness blocker, not a paper-fidelity issue (see Paper Fidelity Analysis, M3)                                                                                                                                    |
+| B4  | Render server is a hard, unstubbed dependency                                       | MemOCR    | `call_md_renderer.py:12-28`, no mock server in repo                                                         | Run `markdown_api_server.py` locally for isolation testing (Chrome/Playwright one-time install, per `MemOCR/README.md:113-130`). This is an acceptable infrastructure constraint (see Paper Fidelity Analysis, M2); non-determinism is inherent to HTTP Playwright                                                                         |
+| B5  | Released checkpoint (`meituan/MemOCR-7B`)'s path into `eval.sh` is undocumented     | MemOCR    | `eval.sh:6-19` hardcodes locally-trained checkpoint path; no script references HF checkpoint                | Test whether `MODEL_NAME=meituan/MemOCR-7B` works directly (cheap experiment, skip `merge_ckpt.sh` if already HF-format). **Paper-fidelity issue:** Shi et al. cite released checkpoint; eval.sh doesn't expose this path (see Paper Fidelity Analysis, M4)                                                                                |
+| B6  | GPU + Ray cluster required for any MemOCR run at all                                | MemOCR    | `README.md:151-167` (Ray cluster setup), `eval.sh` (GPU-sized `MODEL_TP=4`)                                 | Infrastructure prerequisite, not a code gap. Flag for whoever executes this plan                                                                                                                                                                                                                                                           |
+| B7  | Two MemOCR rendering variants exist; unclear which is paper-faithful                | MemOCR    | `memory_img.py:240` renders per chunk; `memory_img_final_only_triple.py:243` skips per-chunk ("FINAL_ONLY") | Confirm which variant matches Shi et al. (general description implies per-episode). Both exist as real implementations. **Paper-fidelity blocker** (see Paper Fidelity Analysis, M1): must audit both against paper language before committing test plan                                                                                   |
 
 ## Recommendation
 
