@@ -1,4 +1,4 @@
-"""Guards the fluxmem/LightMem name collision (plan Step 0)."""
+"""Guards against a shadowing fluxmem package resolving instead of the repo root one."""
 
 from __future__ import annotations
 
@@ -12,5 +12,5 @@ def test_fluxmem_resolves_under_repo_root() -> None:
     module_path = pathlib.Path(fluxmem.__file__).resolve()
     assert module_path.is_relative_to(repo_root), (
         f"fluxmem imported from {module_path}, not under repo root {repo_root} "
-        "-- LightMem/src/fluxmem/ may be shadowing the root package"
+        "-- another installed fluxmem package may be shadowing the root package"
     )

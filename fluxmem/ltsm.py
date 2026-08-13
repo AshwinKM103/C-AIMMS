@@ -48,8 +48,7 @@ hard gate still refuses anything genuinely ancient).
 ## Note on storage-invariants.md
 
 `.claude/rules/storage-invariants.md` is path-scoped and `configs/` matches
-it, but its `dense_weight`/`bm25_weight` invariant describes FluxMem's
-hybrid retriever in `LightMem/`. This package builds no BM25 fusion --
+it. This package builds no BM25 fusion or vector retriever --
 retrieval (ITERRET) is an explicit non-goal -- so there are no fusion
 weights to record. Stated here explicitly rather than left for a reader to
 assume the invariant was overlooked.

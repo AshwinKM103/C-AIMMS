@@ -17,14 +17,14 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git commit *)",
             "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/commit-guard.js",
+            "if": "Bash(git commit *)",
             "timeout": 10
           },
           {
             "type": "command",
-            "if": "Bash(git push *)",
             "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/pre-push-check.js",
+            "if": "Bash(git push *)",
             "timeout": 10
           }
         ]
@@ -47,5 +47,16 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "whatsapp-claude-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "Rich627/whatsapp-claude-plugin"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "whatsapp-claude-channel@whatsapp-claude-plugin": true
   }
 }

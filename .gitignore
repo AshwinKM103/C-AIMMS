@@ -1,5 +1,4 @@
 # Nested repos / vendor clones — tracked separately, not part of this repo
-LightMem/
 awesome-claude-code-toolkit/
 
 # Secrets and local overrides

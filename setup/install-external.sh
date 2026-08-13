@@ -6,9 +6,9 @@
 # why step 0 is a security scan and why nothing is piped straight from curl to bash.
 #
 # IMPORTANT: activate the project env first if you want these in it, and be aware that
-#   pip installs below go into whatever Python is active:
-#     conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem
-#   The lightmem env has pinned, load-bearing versions (torch 2.8, transformers 4.57).
+#   pip installs below go into whatever Python is active. The project env (pinned,
+#   load-bearing versions: torch 2.8, transformers 4.57) needs to be recreated under
+#   /mnt/ssd/users/durgesh/conda-envs/ — see CLAUDE.md.
 #   Prefer pipx / a separate tools env for the CLIs so you cannot disturb those pins.
 
 set -euo pipefail

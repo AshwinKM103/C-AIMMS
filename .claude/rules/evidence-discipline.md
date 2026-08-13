@@ -9,7 +9,7 @@ wrong. These rules target that failure mode. Sources are named so the reasoning 
 before writing the code that consumes it. Field present? Nullable? Nested? What does an empty case
 look like?
 
-*Why:* an A/B test of a hook that forced this step found the ungated agent "assumed a schema" and
+_Why:_ an A/B test of a hook that forced this step found the ungated agent "assumed a schema" and
 invented keys that tests did not catch (GateGuard, zunoworks). Their evidence is weak on its own —
 N=3, self-scored, authors acknowledge bias — but the failure it describes is exactly how a silent
 metric bug is born, and checking costs one `head`.
@@ -20,7 +20,7 @@ metric bug is born, and checking costs one `head`.
   conclusion's clothes.
 - **Number your observations and cite the source of each** — file:line, a command's output, a paper.
   Three lines maximum per observation.
-- Distinguish *evidence* from *pattern-match*. If you recognized the shape of the problem but did
+- Distinguish _evidence_ from _pattern-match_. If you recognized the shape of the problem but did
   not confirm it, say so explicitly. (paul-graham-skills: `mark-what-you-don't-know`,
   `distrust-the-surface` — a clean answer is a hypothesis, not a result.)
 - **A failed method is the problem, not the goal.** When something is not working, change the
@@ -32,10 +32,10 @@ metric bug is born, and checking costs one `head`.
 Development and research are different loops. Naming which one you are in prevents applying the
 wrong standard. (claude-agentic-coding-playbook, john-wilmes.)
 
-| Loop | Shape |
-|---|---|
+| Loop            | Shape                                   |
+| --------------- | --------------------------------------- |
 | **Development** | Explore → Plan → Code → Verify → Commit |
-| **Research** | Question → Collect → Synthesize → Close |
+| **Research**    | Question → Collect → Synthesize → Close |
 
 A research question closes with a written finding and its sources, not with merged code. Do not
 let a research thread quietly become an implementation thread without a decision in between —
@@ -48,10 +48,10 @@ Run the checklist. Not "it looks right":
 1. Did the tests actually run, and did they pass? Paste the output, do not summarize it.
 2. If a number changed, is the change explained, or merely observed?
 3. Is anything half-finished, TODO'd without context, or worked around silently?
-   (`LightMem/CLAUDE.md`: Codex reviews everything — it will flag these.)
+   (`docs/workflows/tooling.md`: Codex reviews everything — it will flag these.)
 4. Was anything skipped? Say so plainly.
 
-*Source:* the completion-checklist pattern from `obey` (Lexxes-Projects), ported as a rule rather
+_Source:_ the completion-checklist pattern from `obey` (Lexxes-Projects), ported as a rule rather
 than as a Stop hook — this project keeps its hook layer minimal.
 
 ## Reporting

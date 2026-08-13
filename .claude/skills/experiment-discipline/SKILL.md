@@ -73,10 +73,10 @@ Confirmed / falsified / inconclusive — and why.
 Do this before theorising (see `.claude/rules/evidence-discipline.md`):
 
 1. `/bisect` (debug-session) across commits — bisect on the _metric_, not on a crash.
-4. `/logic-review` (logic-lens) the metric-computation path. This is the failure mode that
+2. `/logic-review` (logic-lens) the metric-computation path. This is the failure mode that
    matters most here: code that runs clean and reports the wrong number. Linters and mypy
    cannot see it.
-5. Only then form two competing hypotheses and test them.
+3. Only then form two competing hypotheses and test them.
 
 ## Benchmarks and external baselines
 

@@ -1,11 +1,12 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository (`LightMem`).
+Guidance for Claude Code when working in this repository (`C-AIMMS`).
 
 ## Review process
 
 **Codex reviews everything Claude produces in this repo.** Write code and
 commits as if a second, independent reviewer will read them closely:
+
 - Prefer clear, self-explanatory code over cleverness; don't rely on context
   that only exists in this conversation.
 - Explain non-obvious decisions in commit messages, not just in chat.
@@ -20,18 +21,21 @@ Five Claude Code plugins are installed (user scope, so available in every
 session, not just this repo). Verify with `claude plugin list`.
 
 ### claude-mem (`claude-mem@thedotmack`)
+
 Persistent cross-session memory. Captures what happens during a session,
 compresses it, and injects relevant context back into future sessions
 automatically via hooks (`SessionStart`, `PreToolUse`, `PostToolUse`, `Stop`) —
 no manual invocation needed for the core behavior. Useful skills to invoke by
 name when needed:
+
 - `mem-search` — search stored memories by keyword/semantic similarity.
 - `timeline-report`, `standup`, `weekly-digests` — summarize past work.
 - `make-plan`, `pathfinder`, `smart-explore` — planning/exploration aids that
   draw on stored context.
-Restart the session after install/updates for memory injection to take effect.
+  Restart the session after install/updates for memory injection to take effect.
 
 ### headroom (`headroom@headroom-marketplace`)
+
 Compresses tool outputs, logs, files, and RAG chunks before they reach the
 model (fewer tokens, same answers). The plugin itself is just two hooks
 (`SessionStart`, `PreToolUse`) that run `headroom init hook ensure` to make
@@ -44,6 +48,7 @@ rewritten to `127.0.0.1`) to compress it before forwarding to Anthropic.
 Check `headroom status` if compression seems inactive.
 
 ### claude-code-setup (`claude-code-setup@claude-plugins-official`)
+
 Read-only meta-skill: analyzes this codebase and recommends Claude Code
 automations (hooks, skills, MCP servers, subagents, slash commands) tailored
 to it. Invoke with prompts like "recommend automations for this project" or
@@ -52,6 +57,7 @@ modify anything itself — treat its output as suggestions to implement
 manually.
 
 ### task-observer (skill, not a marketplace plugin — `~/.claude/skills/task-observer/`)
+
 From `rebelytics/one-skill-to-rule-them-all` — installed manually since this
 project has no `.claude-plugin/marketplace.json` to hook into `/plugin`.
 Watches multi-step work sessions for patterns worth turning into reusable
@@ -64,6 +70,7 @@ feed into periodic reviews (see its `references/weekly-review.md`) where you
 decide what becomes a new skill.
 
 ### omniroute (MCP server, not a plugin)
+
 `diegosouzapw/OmniRoute` — a local AI gateway/router (160+ providers, token
 compression, auto-fallback), installed via `npm install -g omniroute` and
 wired in as an MCP server (`claude mcp add-server omniroute --type http --url
@@ -84,6 +91,7 @@ marketplace; nothing matches beyond `coderabbit`, which merely mentions
 "codegraph relationships" as a term, unrelated to this tool).
 
 Useful commands when navigating or reasoning about impact in this codebase:
+
 - `codegraph query <search>` — search for symbols.
 - `codegraph explore <query...>` — relevant symbols' source + call paths in
   one shot.
@@ -101,9 +109,8 @@ MCP tools get installed explicitly.
 
 ## Local models and environment
 
-- Conda env: `/mnt/ssd/users/durgesh/conda-envs/lightmem` (Python 3.11,
-  `pip install -e .` done). Activate with:
-  `conda activate /mnt/ssd/users/durgesh/conda-envs/lightmem`
+- Conda env: removed as of 2026-08-12; needs recreating under
+  `/mnt/ssd/users/durgesh/conda-envs/` (Python 3.10–3.11, `pip install -e .`).
 - Local model paths are in `.env` at the repo root (gitignored):
   `LLMLINGUA_MODEL_PATH`, `EMBEDDING_MODEL_PATH`, `QWEN3_4B_INSTRUCT_PATH`,
   `LLAMA31_8B_INSTRUCT_PATH`.

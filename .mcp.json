@@ -11,10 +11,7 @@
     },
     "github": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-github"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
       },
@@ -22,10 +19,7 @@
     },
     "memory": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
       "description": "Knowledge graph for research findings and entity relationships across sessions."
     },
     "serena": {
@@ -35,9 +29,34 @@
         "--context",
         "claude-code",
         "--project",
-        "/home/durgesh/aditya/C-AIMMS/LightMem"
+        "/home/durgesh/aditya/C-AIMMS"
       ],
       "description": "LSP-backed symbol search and safe symbol-level edits (rename/move/inline) across Python. Install: uv tool install -p 3.13 serena-agent"
+    },
+    "headroom": {
+      "command": "headroom",
+      "args": ["mcp", "serve"],
+      "env": {
+        "HEADROOM_PROXY_URL": "http://127.0.0.1:8787"
+      },
+      "description": "Context optimization layer - compresses large tool outputs, provides on-demand retrieval via headroom_retrieve tool."
+    },
+    "omniroute": {
+      "type": "http",
+      "url": "http://localhost:20128/api/mcp/stream",
+      "description": "Local AI gateway/router (160+ providers, token compression, auto-fallback). Start with: omniroute. Dashboard: http://localhost:20128"
+    },
+    "whatsapp": {
+      "command": "bun",
+      "args": [
+        "run",
+        "--cwd",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "--shell=bun",
+        "--silent",
+        "start"
+      ],
+      "description": "WhatsApp messaging channel via Baileys protocol. Configure with /whatsapp-claude-channel:configure"
     }
   }
 }
