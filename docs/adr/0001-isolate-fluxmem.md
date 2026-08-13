@@ -1,0 +1,76 @@
+# 0001. Isolate FluxMem: delete LightMem-core, EM²Mem, StructMem
+
+## Status
+
+Accepted — team signed off 2026-08-09. Phase 2 (deletion) of
+`docs/plans/isolate-fluxmem.md` is authorized.
+
+## Context
+
+`LightMem/` currently hosts four memory methods: LightMem-core (Qdrant-backed),
+FluxMem (FAISS-backed, three-stage pipeline), EM²Mem (vendors VLM2Vec), and
+StructMem (not standalone code — a config mode of LightMem-core). FluxMem is the
+method on the active COLM publication track; the other three add repo-navigation
+cost and doc/config surface area without being used by FluxMem.
+
+Phase 0 discovery (`docs/plans/isolate-fluxmem.md`, findings 1–9) established,
+via two independent methods (grep + `codegraph explore` cross-check):
+
+- Zero cross-imports between `src/fluxmem/` and `src/lightmem/`/`src/em2mem/` in
+  either direction.
+- No shared vector store, base class, config loader, or experiment harness.
+  FluxMem uses FAISS; LightMem-core uses Qdrant.
+- FluxMem already has its own `pyproject.toml` extras group (`fluxmem`).
+- The only test file in the repo (`tests/test_sensory_memory.py`) is
+  LightMem-core-only; FluxMem has no test coverage today, so none is lost.
+- No dispatcher/CLI branches by method name; `mcp/server.py` is a
+  LightMem-core-only entrypoint.
+- FluxMem has no experiment/runner script anywhere in the repo — it is invoked
+  only via inline examples in `FluxMem.md`.
+
+Confidence is high on the code axis. One gap remains open (non-Python runtime
+assets / dataset paths) and is closed by a grep sanity check at the start of
+Phase 2, not before.
+
+## Decision
+
+Delete LightMem-core, EM²Mem, and StructMem (docs + source) from `LightMem/`,
+keeping only FluxMem. Execution is scoped to `docs/plans/isolate-fluxmem.md`
+Phases 2–4.
+
+### Open question 1 — does FluxMem get its own experiment harness?
+
+**Decision: no new harness for now; evaluation stays ad hoc via `FluxMem.md`'s
+inline examples.** Reasoning: no harness exists today (Phase 0 finding 6), and
+building `experiments/fluxmem/` from scratch is new scope this ADR did not set
+out to fund. If FluxMem's evaluation needs grow past what `FluxMem.md` can hold
+inline, that is a separate, explicit decision — write a new ADR rather than
+retrofitting one in here. Flagged in the plan's Phase 4 step 3 as "explicitly
+deferred," not ambiguous.
+
+### Open question 2 — rename the conda env `lightmem` → `fluxmem`?
+
+**Decision: leave the name as a historical artifact.** Reasoning: renaming a
+conda env is a team-wide environment change (every teammate's `conda activate`
+muscle memory, any CI/setup scripts referencing the name) for a purely cosmetic
+gain. `CLAUDE.md` already documents the env path explicitly; a comment noting
+the name predates this deletion is enough. Revisit only if the name causes
+actual confusion in practice.
+
+## Consequences
+
+- Loses LightMem-core's Qdrant retrieval path, the LoCoMo/LongMemEval/EgoLife
+  experiment harnesses, and the `mcp/server.py` entrypoint — all LightMem-core-
+  or EM²Mem-only per Phase 0 findings 3, 5, 6.
+- FluxMem gains no new capability from this decision; it only removes dead
+  weight and repo-navigation cost (fewer subsystems for `codegraph`/serena to
+  index, shorter routing tables, less doc surface to keep current).
+- `.claude/skills/qdrant-ops/SKILL.md` becomes a deletion candidate — verify
+  with a grep in Phase 3 before removing, per the plan's anti-pattern guards.
+- `docs/workflows/add-memory-backend.md` loses its anchor (LightMem-core's
+  factory pattern); either rewritten around FluxMem's actual extension points
+  or marked as needing a rewrite before next use.
+- All doc/config blast-radius items listed in Phase 0 finding 7 need the edits
+  enumerated in `docs/plans/isolate-fluxmem.md` Phase 3.
+- `LightMem/` is a separate git repo; the deletion and this outer-repo's doc
+  updates are necessarily two separate commits in two separate repos.

@@ -2,7 +2,7 @@
 name: prompt-engineer
 description: Prompt optimization with chain-of-thought, structured outputs, few-shot learning, and systematic evaluation
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # Prompt Engineer Agent

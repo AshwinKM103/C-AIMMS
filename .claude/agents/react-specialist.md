@@ -2,7 +2,7 @@
 name: react-specialist
 description: React 19 development with hooks, state management, concurrent features, and component architecture
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # React Specialist Agent

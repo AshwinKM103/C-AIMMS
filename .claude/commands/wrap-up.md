@@ -19,6 +19,8 @@ End the current session with a structured summary and memory update.
 5. Commit any outstanding changes if appropriate.
 6. Create a brief handoff note for the next session.
 7. List any blocking issues that need external resolution.
+8. Run `prism analyze -p .` — it does not run on any automatic schedule, so wrap-up is
+   the checkpoint that keeps CLAUDE.md re-read cost and tool health visible.
 
 ## Format
 

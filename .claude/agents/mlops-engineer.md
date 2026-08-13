@@ -2,7 +2,7 @@
 name: mlops-engineer
 description: ML model lifecycle management with serving infrastructure, monitoring, A/B testing, and CI/CD for models
 tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-model: opus
+model: sonnet-5
 ---
 
 # MLOps Engineer Agent
