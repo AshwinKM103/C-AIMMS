@@ -51,10 +51,19 @@ class Turn:
 class EpisodicUnit:
     """A structured episodic unit e_j, as MTEM stores it (COLM Sec 1.3.2).
 
-    `hyperedge_density` and `visual_salience` are opaque placeholders a real
-    HETREP HG/VC encoder would populate (see fluxmem/features.py); that
-    encoder is out of scope here, so they default to 0.0 and pass through
-    feature extraction unchanged.
+    `hyperedge_density` and `visual_salience` are opaque scalar placeholders
+    a real HETREP HG/VC encoder would populate (see fluxmem/features.py);
+    that encoder is out of scope here, so they default to 0.0 and pass
+    through feature extraction unchanged.
+
+    `hg_adjacency` and `vc_feature_map` are the *structured* raw HG/VC
+    encoder outputs the 15-feature selector set (fluxmem/features_v2.py,
+    docs/workflows/feature-engineering-selector/phase3_output.md) needs --
+    a weighted adjacency matrix and a spatial feature map, respectively --
+    as opposed to the single scalars above. Same non-goal: the real
+    HypergraphEncoder/VisualCanvasStub (hetrep/hg, hetrep/vc) don't populate
+    these yet (ADR 0003), so they default to `None` and fluxmem/features_v2.py
+    degrades to a documented degenerate placeholder rather than crashing.
     """
 
     episode_id: str
@@ -67,6 +76,8 @@ class EpisodicUnit:
     created_at: float = 0.0
     hyperedge_density: float = 0.0
     visual_salience: float = 0.0
+    hg_adjacency: np.ndarray | None = None
+    vc_feature_map: np.ndarray | None = None
 
 
 @runtime_checkable

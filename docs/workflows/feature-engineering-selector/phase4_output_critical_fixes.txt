@@ -1,0 +1,53 @@
+PHASE 4 CRITICAL FINDINGS - HANDOFF TO PHASE 5
+
+=== PHASE 4A: VALIDATION RESULTS ===
+Status: PASS (all 15 features validated)
+- All formulas run correctly
+- 13 features show real signal
+- 6 high-correlation pairs mechanistically explained
+- Recommendation: Keep all 15 features
+
+=== PHASE 4B: EDGE CASE ANALYSIS ===
+Status: 6 CRITICAL ISSUES FOUND
+- NaN/inf propagation risks identified
+- Silent training failure risk documented
+- Must fix before Phase 5 implementation
+
+=== PHASE 5 HANDOFF CHECKLIST ===
+
+CRITICAL FIXES (Must implement):
+[ ] Input validation: Reject NaN/inf at feature extraction boundary (30 min)
+[ ] Output clamping: Clamp 12 features to [0, 1] range (30 min)
+[ ] Zero-vector guard: Fix vs_embedding_stability (30 min)
+
+IMPORTANT FIXES (Should implement):
+[ ] Adjacency validation: Reject negative edge weights (15 min)
+[ ] Epsilon guards: Safe hg_cost_position (15 min)
+
+TESTING (Unit tests):
+[ ] Edge case suite (62 test cases) (2 hours)
+[ ] Regression test: no NaN/inf propagation (critical)
+
+IMPLEMENTATION:
+[ ] Update fluxmem/features.py: FEATURE_DIM 7→20
+[ ] Implement extract_geometry(), extract_efficiency(), extract_overlap(), extract_robustness(), extract_task_fit()
+[ ] Use phase3_features.py as reference implementation
+
+TESTING BEFORE MERGE:
+[ ] Run phase4a_validation.py on sample data (ranges OK)
+[ ] Run edge_case_test.py (all 62 tests pass)
+[ ] No NaN in output features
+[ ] MLP training converges (no NaN loss cascade)
+
+=== REFERENCES ===
+- Phase 3 Reference: phase3_output.md + phase3_features.py
+- Phase 4a Report: PHASE_4A_VALIDATION_REPORT.md
+- Phase 4b Report: phase4b_report.md + edge_case_test.py
+- Critical Issues: 6 NaN/inf propagation paths (documented in Phase 4b)
+
+=== SUCCESS CRITERIA FOR PHASE 5 ===
+1. Feature extraction functions implemented (20 features)
+2. All 6 critical issues fixed (NaN/inf protection)
+3. Unit tests passing (62 edge cases + regression)
+4. No silent failures: MLP training converges cleanly
+5. Documentation complete: feature definitions, formulas, usage examples
