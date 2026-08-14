@@ -9,4 +9,4 @@
 	url = https://github.com/AshwinKM103/EM-LLM.git
 [submodule "IterRet"]
 	path = IterRet
-	url = ./IterRet
+	url = https://github.com/AshwinKM103/IterRet.git
