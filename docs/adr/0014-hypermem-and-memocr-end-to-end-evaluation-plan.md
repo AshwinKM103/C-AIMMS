@@ -351,7 +351,15 @@ measured" when it is in fact "not applicable."
 
 ## Recommendation
 
-**Priority order: HyperMem first, MemOCR second — and within MemOCR, resolve B7 before B3/B5/B6.**
+### MemOCR Blockers: B7 and B5 Resolved
+
+**B7 (Rendering Variant) — RESOLVED:** Paper (Shi et al. 2026, Eq. 6) explicitly specifies rendering at "the final step," not per-chunk. Use `MemOCR/recurrent/impls/memory_img_final_only_triple.py` for evaluation. The per-chunk variant (`memory_img.py`) diverges from paper specification.
+
+**B5 (Checkpoint Path) — RESOLVED:** Released checkpoint `meituan/MemOCR-7B` loads directly from HuggingFace without `merge_ckpt.sh`. Updated `MemOCR/scripts/eval.sh` to support both locally-trained (default for backward compatibility) and released checkpoint (paper-faithful). To use released: `MODEL_NAME=meituan/MemOCR-7B`.
+
+### Execution Priority
+
+**Priority order: HyperMem first, MemOCR second — B7 and B5 are now unblocked.**
 
 HyperMem is more modular by direct evidence: six independently invocable stage scripts
 (`hypermem/main/stageN_*.py`), 8 existing unit-test files already targeting its retrieval-layer
