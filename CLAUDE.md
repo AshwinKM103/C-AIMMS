@@ -31,10 +31,16 @@ Components are composable; Phase 1 (VS) needs no LLM; Phases 2–3 (HG/VC) need 
 git clone --recursive https://github.com/AshwinKM103/C-AIMMS.git
 cd C-AIMMS
 conda activate caimms  # or: conda create -n caimms python=3.11.15 && conda activate caimms
-pip install -e .
+# Install all four components (fluxmem/hetrep, HyperMem, MemOCR, IterRet):
+pip install -e '.[hypermem,memocr,iterret]'
+# Or install only the components you need:
+# pip install -e '.[hypermem]' for HyperMem only
+# pip install -e . for core fluxmem/hetrep only
 ```
 
-- Canonical env: `caimms` (Python 3.11.15); required for fluxmem + hetrep imports
+- Canonical env: `caimms` (Python 3.11.15, Python 3.10–3.11 supported per pyproject.toml)
+- All four components now share the same `caimms` env; `[hypermem]`, `[memocr]`, `[iterret]` are
+  optional-dependency groups in `pyproject.toml`. Install only what you need to minimize deps.
 - Local model paths: `.env` (gitignored): `EMBEDDING_MODEL_PATH` (all-MiniLM-L6-v2), etc.
 - **Large artifacts go under `/mnt/ssd/users/durgesh/`, never `/home`** (small disk, near-full)
 - NLTK data: `/mnt/ssd/users/durgesh/nltk_data/` (pre-fetched in setup)

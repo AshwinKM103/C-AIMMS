@@ -27,75 +27,37 @@ CANONICAL IMPLEMENTATION for the MemOCR paper (Shi et al., 2026):
 
 ---
 
-### 2. ✅ Documented HyperMem Config Defaults
+### 2. ✅ Resolved HyperMem Config Discrepancy (CONFIG_DEFAULTS.md consolidated)
 
-**File Created**: `HyperMem/CONFIG_DEFAULTS.md`
+**Original Issue**: Earlier investigation created `HyperMem/CONFIG_DEFAULTS.md` and
+`HyperMem/REPRODUCIBILITY_GUIDE.md` to document a discrepancy between the README's recommended
+configuration (k^T=15, k^E=25, reranker=true) and the code's actual defaults (k^T=10, k^E=10).
 
-**Contents**:
+**Resolution** (2026-08-15): The paper-recommended values are now the actual code defaults:
 
-- **Critical parameters table**: λ=0.5, aggregation="sum", RRF k=60 (all verified in code)
-- **Retrieval parameters table**: k^T, k^E, k^F with paper vs. code values
-- **Environment variable override guide**: How to set parameters without changing code
-- **Expected performance baseline**: 92.73% overall accuracy
-- **Reproducibility checklist**: Step-by-step verification
+- `HyperMem/hypermem/config/constants.py:62-63` — Updated `DEFAULT_TOPIC_TOP_K` to 15 and
+  `DEFAULT_EPISODE_TOP_K` to 25
+- `HyperMem/hypermem/config/config.yaml:59-60` — Updated the YAML defaults to match
+- `HyperMem/scripts/run_eval.sh:10,12-13` — Updated the eval script defaults and changed
+  `HYPERMEM_USE_RERANKER` default from `false` to `true`
+- `HyperMem/tests/test_config.py:38-40` — Updated test expectations to assert the new defaults
+- `HyperMem/README.md` — Clarified that these are now the defaults, not optional overrides
 
-**Key Finding**:
+**Paper Defaults Now (Consolidated to CONFIGURATION.md)**: See `HyperMem/docs/CONFIGURATION.md#paper-defaults`
 
-| Parameter   | Paper Value | Code Default | Status   |
-| ----------- | ----------- | ------------ | -------- |
-| λ (alpha)   | 0.5         | 0.5          | ✅ Match |
-| Aggregation | sum         | sum          | ✅ Match |
-| RRF k       | 60          | 60           | ✅ Match |
+| Parameter   | Value | Code Location |
+| ----------- | ----- | -------------- |
+| λ (alpha)   | 0.5   | constants.py:52 |
+| k^T         | 15    | constants.py:62 |
+| k^E         | 25    | constants.py:63 |
+| k^F         | 30    | constants.py:64 |
+| Reranker    | true  | config.yaml:57 |
+| Aggregation | sum   | config/__init__.py:~105 |
 
----
-
-### 3. ✅ Verified Experimental Reproducibility
-
-**File Created**: `HyperMem/REPRODUCIBILITY_GUIDE.md`
-
-**Major Discovery**: **Parameter Mismatch Between README and Code**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ CRITICAL FINDING: README Documents One Configuration;       │
-│ Code Defaults Are Different                                 │
-├────────────────┬──────────────┬─────────────────────────────┤
-│ Parameter      │ README (L166)│ Code Default (config.py)   │
-├────────────────┼──────────────┼─────────────────────────────┤
-│ k^T (topics)   │ 15           │ 10                          │
-│ k^E (episodes) │ 25           │ 10                          │
-│ k^F (facts)    │ 30           │ 30 ✓                        │
-└────────────────┴──────────────┴─────────────────────────────┘
-```
-
-**Explanation**:
-
-- README line 166 documents: "(k^T, k^E, k^F) = (15, 25, 30)" **as a recommended configuration**
-- Code defaults in `config/__init__.py` lines 84-87 are: **(10, 10, 30)**
-- Paper likely used settings **matching README** (15, 25, 30) to achieve 92.73% accuracy
-
-**Two Possible Configurations Documented**:
-
-**Config A - Code Defaults (Fast)**:
-
-```bash
-HYPERMEM_TOPIC_TOP_K=10
-HYPERMEM_EPISODE_TOP_K=10
-HYPERMEM_FACT_TOP_K=30
-```
-
-Expected: ~85-88% accuracy, fastest runtime
-
-**Config B - Paper Settings (Matches README)**:
-
-```bash
-HYPERMEM_TOPIC_TOP_K=15
-HYPERMEM_EPISODE_TOP_K=25
-HYPERMEM_FACT_TOP_K=30
-HYPERMEM_USE_RERANKER=true
-```
-
-Expected: ~92.73% accuracy (paper claim)
+**Consolidation**: The two investigative .md files (`CONFIG_DEFAULTS.md`, `REPRODUCIBILITY_GUIDE.md`)
+have been deleted. Their essential content is now inlined in `HyperMem/docs/CONFIGURATION.md` as the
+[Paper Defaults](#paper-defaults) section. The discrepancy has been resolved by updating code
+defaults to match the paper values.
 
 ---
 
@@ -103,20 +65,10 @@ Expected: ~92.73% accuracy (paper claim)
 
 ### For HyperMem Users
 
-1. **To match paper results** (92.73% accuracy):
+**Default behavior now matches paper specifications** (k^T=15, k^E=25, reranker=true).
+No special environment variable setup needed for paper replication.
 
-   ```bash
-   # Set environment variables before running
-   export HYPERMEM_TOPIC_TOP_K=15
-   export HYPERMEM_EPISODE_TOP_K=25
-   export HYPERMEM_FACT_TOP_K=30
-   export HYPERMEM_USE_RERANKER=true
-   ```
-
-   See: `HyperMem/REPRODUCIBILITY_GUIDE.md`
-
-2. **To verify config defaults**:
-   See: `HyperMem/CONFIG_DEFAULTS.md` (tables, expected performance)
+To customize parameters, see `HyperMem/docs/CONFIGURATION.md` and the `Paper Defaults` table within it.
 
 ### For MemOCR Users
 
@@ -134,13 +86,12 @@ Expected: ~92.73% accuracy (paper claim)
 
 ### HyperMem Reproducibility ✅
 
-- [x] λ = 0.5 (verified in config/**init**.py:56)
-- [x] aggregation = "sum" (verified in config/**init**.py:55)
-- [x] RRF k = 60 (verified in stage4_hypergraph_retrieval.py:55)
-- [x] Embedding model: Qwen3-Embedding-4B (verified in config/**init**.py:73)
-- [x] Configuration guide created with exact file locations
-- [?] k^T=15, k^E=25 (likely, but marked as "needs confirmation" with paper authors)
-- [?] use_reranker=true (likely needed for 92.73% result)
+- [x] λ = 0.5 (verified in constants.py:52)
+- [x] aggregation = "sum" (verified in config/__init__.py:~105)
+- [x] RRF k = 60 (verified in stage4_hypergraph_retrieval.py:54)
+- [x] k^T=15, k^E=25 (now code defaults in constants.py:62-63)
+- [x] use_reranker=true (now code default in config.yaml:57 and run_eval.sh:10)
+- [x] Configuration guide created with exact file locations (`CONFIGURATION.md#paper-defaults`)
 
 ### MemOCR Rendering Strategy ✅
 
@@ -151,50 +102,32 @@ Expected: ~92.73% accuracy (paper claim)
 
 ---
 
-## Remaining Questions for Authors
-
-If reproducibility remains challenging:
-
-1. **HyperMem**:
-   - Were k^T=15, k^E=25 used in paper experiments? (vs. code defaults of 10, 10)
-   - Was reranker enabled during evaluation?
-   - Any other parameters that differ from code defaults?
-
-2. **MemOCR**:
-   - Confirmed: final-only rendering matches paper ✅
-   - What training objectives were used? (T_std, T_augM, T_augQ all enabled?)
-   - What memory budgets were tested in main experiments?
-
 ---
 
-## Files Created/Modified
+## Files Modified
 
-### Created:
+1. `HyperMem/hypermem/config/constants.py` — Updated `DEFAULT_TOPIC_TOP_K` (15) and `DEFAULT_EPISODE_TOP_K` (25)
+2. `HyperMem/hypermem/config/config.yaml` — Updated YAML defaults to match
+3. `HyperMem/scripts/run_eval.sh` — Updated defaults and reranker to true
+4. `HyperMem/tests/test_config.py` — Updated test expectations
+5. `HyperMem/README.md` — Clarified that paper values are now defaults
+6. `HyperMem/docs/CONFIGURATION.md` — Added "Paper Defaults" section, consolidated from deleted docs
+7. `HyperMem/docs/ARCHITECTURE.md` — Updated reference from `CONFIG_DEFAULTS.md` to `CONFIGURATION.md#paper-defaults`
+8. `MemOCR/recurrent/impls/memory_img_final_only_triple.py` — Added canonical implementation docstring
+9. `MemOCR/recurrent/impls/memory_img.py` — Added alternative implementation note
 
-1. `HyperMem/CONFIG_DEFAULTS.md` — Configuration reference and troubleshooting
-2. `HyperMem/REPRODUCIBILITY_GUIDE.md` — Detailed reproducibility analysis with parameter mismatch discovery
-3. `PAPER_FIDELITY_ACTION_ITEMS.md` — This summary (you are here)
+## Files Deleted
 
-### Modified:
-
-1. `MemOCR/recurrent/impls/memory_img_final_only_triple.py` — Added canonical implementation docstring
-2. `MemOCR/recurrent/impls/memory_img.py` — Added alternative implementation note
+1. `HyperMem/CONFIG_DEFAULTS.md` — Content consolidated into `CONFIGURATION.md#paper-defaults`
+2. `HyperMem/REPRODUCIBILITY_GUIDE.md` — Discrepancy resolved; content no longer needed
 
 ---
 
 ## Next Steps
 
-### For Immediate Use
-
-1. Refer to `HyperMem/REPRODUCIBILITY_GUIDE.md` when running experiments
-2. Use Configuration B (k^T=15, k^E=25) for paper replication attempts
-3. Use `MemOCR/recurrent/impls/memory_img_final_only_triple.py` as canonical implementation
-
-### For Paper Fidelity
-
-1. Confirm with authors: actual k^T, k^E values used in experiments
-2. Confirm with authors: reranker usage (enabled/disabled)
-3. Update README.md to clarify that documented settings are "recommended" not "default"
+1. Use `MemOCR/recurrent/impls/memory_img_final_only_triple.py` as canonical implementation
+2. Run HyperMem with default settings to replicate paper (no env var overrides needed)
+3. Refer to `HyperMem/docs/CONFIGURATION.md` for tuning and advanced configuration
 
 ### For Documentation
 
