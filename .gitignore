@@ -35,6 +35,3 @@ htmlcov/
 # OS / editor
 .DS_Store
 *.swp
-
-.claude-profile/
-.env
