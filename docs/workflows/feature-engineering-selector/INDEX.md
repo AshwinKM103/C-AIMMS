@@ -1,50 +1,52 @@
 # Selector MLP Feature Engineering: Complete Index
 
-## Files in This Scratchpad
+## Files in This Deliverable
 
 ```
-scratchpad/
+docs/workflows/feature-engineering-selector/
 ├── INDEX.md                                    ← You are here
-├── QUICK_START_GUIDE.md                       ← Start here: 5 min overview
-├── selector_feature_engineering_prompt.md     ← Main prompt: detailed task spec
-└── agents_skills_recommendation.md            ← Agent lineup and execution strategies
+├── FEATURE_ENGINEERING_REPORT.md               ← Start here: complete overview
+├── FEATURE_REFERENCE.md                        ← Feature catalog (all 15 features)
+├── DESIGN_RATIONALE.md                         ← Architecture & token-budget accounting
+├── DEPLOYMENT_GUIDE.md                         ← Integration & code examples
+├── phase3_output.md                            ← Full specifications & validation
+├── phase1_output.md                            ← Baseline analysis
+├── phase2_output.md                            ← Encoder characterization
+└── SEQUENTIAL_EXECUTION_PLAN.md                ← Execution record
 ```
 
 ---
 
 ## Document Map & Read Path
 
-### **For the Impatient (5 min)**
-1. Read: `QUICK_START_GUIDE.md` — What you need to know to start
-2. Action: Pick an execution sequence (Sequential, Parallel, or Hybrid)
-3. Action: Run `/prompt-engineer` on the main prompt
-4. Action: Spawn your first agent
+### **For Quick Reference (10 min)**
+
+1. Read: `FEATURE_REFERENCE.md` — All 15 features with formulas
 
 ---
 
-### **For the Thorough (20 min)**
-1. Read: `QUICK_START_GUIDE.md` — Full guide with checkpoints and Q&A
-2. Read: `INDEX.md` → "Overview" section (this document)
-3. Skim: `selector_feature_engineering_prompt.md` → Phases 1–3 only (get a feel for the task)
-4. Read: `agents_skills_recommendation.md` → Your chosen execution sequence
-5. Action: Run `/prompt-engineer`, spawn agents
+### **For Understanding (40 min)**
+
+1. Read: `FEATURE_ENGINEERING_REPORT.md` — Complete methodology & results
+2. Read: `DESIGN_RATIONALE.md` → Architecture section (why these features)
+3. Skim: `FEATURE_REFERENCE.md` → Your features of interest
 
 ---
 
-### **For the Completist (45 min)**
-1. Read: `QUICK_START_GUIDE.md` — Full guide
-2. Read: `INDEX.md` → All sections (this document)
-3. Read: `selector_feature_engineering_prompt.md` — Entire prompt, all phases
-4. Read: `agents_skills_recommendation.md` → Entire agent lineup
-5. Answer: The "Questions to Ask Before Starting" in agents_skills_recommendation.md
-6. Action: Run `/prompt-engineer`, spawn agents, track with checkpoints
+### **For Implementation (30 min)**
+
+1. Read: `DEPLOYMENT_GUIDE.md` — Code patterns & integration
+2. Skim: `FEATURE_REFERENCE.md` → Feature formulas
+3. Reference: `phase3_output.md` → Validation gates & bounded features
 
 ---
 
 ## Overview: What Is This Task?
 
 ### The Problem
+
 You have a **selector MLP** that chooses between three encodings:
+
 - **VS** (Vector Semantic): dense embeddings from text/episodes
 - **HG** (Hierarchical Graph): structured graph representations from HyperMem
 - **VC** (Visual/Conceptual): visual or conceptual features from MemOCR
@@ -52,13 +54,17 @@ You have a **selector MLP** that chooses between three encodings:
 The selector is based on **FluxMem's selector**, which has **12 hand-crafted features** designed to differentiate between linear, graph, and hierarchical modalities.
 
 ### The Challenge
+
 **Can't directly reuse FluxMem's features because:**
+
 1. Different representations (embeddings vs. graphs vs. images)
 2. Different extraction sources (VectorDB vs. HyperMem vs. MemOCR)
 3. Different downstream uses (C-AIMMS pipeline vs. FluxMem pipeline)
 
 ### The Goal
+
 **Design a new feature set** (M ≤ 20 features) that:
+
 - ✅ Works for all three encodings
 - ✅ Derives from their actual outputs (not theoretical)
 - ✅ Helps an MLP choose between them
@@ -69,13 +75,13 @@ The selector is based on **FluxMem's selector**, which has **12 hand-crafted fea
 
 ## Task Structure: 5 Phases
 
-| Phase | Goal | Key Questions | Duration |
-|-------|------|---------------|----------|
-| **1: Baseline** | Understand FluxMem's 12 features | Why these 12? How do they work? | 30 min |
-| **2: Encoder Outputs** | Characterize VS, HG, VC outputs | What shape/type/range does each produce? | 45 min |
-| **3: Feature Engineering** | Design new feature set | What properties matter for selection? | 90 min ⭐ |
-| **4: Validation** | Test on real data | Do features work? Are they redundant? | 55 min |
-| **5: Implementation** | Code + docs | Can this be used in practice? | 70 min |
+| Phase                      | Goal                             | Key Questions                            | Duration  |
+| -------------------------- | -------------------------------- | ---------------------------------------- | --------- |
+| **1: Baseline**            | Understand FluxMem's 12 features | Why these 12? How do they work?          | 30 min    |
+| **2: Encoder Outputs**     | Characterize VS, HG, VC outputs  | What shape/type/range does each produce? | 45 min    |
+| **3: Feature Engineering** | Design new feature set           | What properties matter for selection?    | 90 min ⭐ |
+| **4: Validation**          | Test on real data                | Do features work? Are they redundant?    | 55 min    |
+| **5: Implementation**      | Code + docs                      | Can this be used in practice?            | 70 min    |
 
 **Total**: 5–6 hours (sequential) or 4–4.5 hours (parallel)
 
@@ -84,6 +90,7 @@ The selector is based on **FluxMem's selector**, which has **12 hand-crafted fea
 ## Key Artifacts to Produce
 
 ### Deliverable 1: Feature Engineering Report
+
 - FluxMem baseline analysis (12 features, why they work)
 - Encoder output characterization (VS, HG, VC specifications)
 - Derived feature set (M ≤ 20 features, definitions, pseudocode)
@@ -91,12 +98,14 @@ The selector is based on **FluxMem's selector**, which has **12 hand-crafted fea
 - Validation results and gaps
 
 ### Deliverable 2: Feature Extraction Code
+
 - Python module with feature computation functions
 - Type hints and docstrings
 - Unit tests and edge case handling
 - Example usage and integration instructions
 
 ### Deliverable 3: Feature Reference Guide
+
 - Table mapping FluxMem → C-AIMMS features (if applicable)
 - Interpretation guide (what does each feature mean?)
 - Configuration and usage examples
@@ -106,6 +115,7 @@ The selector is based on **FluxMem's selector**, which has **12 hand-crafted fea
 ## Execution Paths
 
 ### Path A: Sequential (Recommended)
+
 Best for: Learning, debugging, iterative feedback
 
 ```
@@ -139,6 +149,7 @@ Best for: Learning, debugging, iterative feedback
 ---
 
 ### Path B: Parallel (Fastest)
+
 Best for: Time-critical, established team, can handle coordination
 
 ```
@@ -177,19 +188,23 @@ Polish (20 min):
 ---
 
 ### Path C: Hybrid (Flexible)
+
 Best for: Incremental progress, multi-session work
 
 **Session 1 (90 min)**: Phases 1–2
+
 - academic-researcher (FluxMem baseline)
 - Explore (encoder structures)
 - Deliverable: Clear understanding of baseline + outputs
 
 **Session 2 (120 min)**: Phases 3–4
+
 - data-scientist (feature engineering)
 - benchmarking-specialist (validation)
 - Deliverable: Validated feature set v1
 
 **Session 3 (90 min)**: Phase 5 + polish
+
 - python-engineer (implementation)
 - technical-writer (docs)
 - /code-review + /checkpoint
@@ -203,22 +218,26 @@ Best for: Incremental progress, multi-session work
 ## Critical Constraints & Requirements
 
 ### Non-Bias Requirement
+
 ❌ **Don't**: Inherit feature choices from past ADRs or architectural decisions
 ✅ **Do**: Derive features bottom-up from encoder outputs
 ✅ **Do**: Cite only papers and code, not design docs
 ✅ **Do**: Validate with data, not intuition
 
 ### Modality-Agnostic Design
+
 ❌ **Don't**: Design separate feature sets for VS, HG, VC
 ✅ **Do**: Design one feature set that works for all three
 ✅ **Do**: Use properties that can be computed for any encoder output
 
 ### Feature Count
+
 ❌ **Don't**: Create >20 features
 ✅ **Do**: Target 12–16 features (match FluxMem baseline)
 ✅ **Do**: Rank by importance if you exceed the limit
 
 ### Real Data Validation
+
 ❌ **Don't**: Assume features work without testing
 ✅ **Do**: Validate on actual HyperMem graphs, MemOCR images, VectorDB embeddings
 ✅ **Do**: Check for NaNs, infinities, out-of-range values
@@ -227,23 +246,25 @@ Best for: Incremental progress, multi-session work
 
 ## Key Code Paths (Relative)
 
-| What | Where |
-|------|-------|
-| FluxMem selector | `fluxmem/selector.py` |
-| FluxMem features (baseline) | `fluxmem/features.py` |
-| FluxMem MLP + training | `scripts/train_selector.py` |
-| HyperMem graph extraction | `HyperMem/hypermem/extractors/` |
-| MemOCR visual encoding | `MemOCR/` (esp. `memory_img*.py`) |
-| HetRep VS encoder | `hetrep/` (all Python files) |
-| Selector tests | `tests/test_selector.py` |
-| Papers & ADRs | `docs/adr/`, `docs/papers/` |
+| What                        | Where                             |
+| --------------------------- | --------------------------------- |
+| FluxMem selector            | `fluxmem/selector.py`             |
+| FluxMem features (baseline) | `fluxmem/features.py`             |
+| FluxMem MLP + training      | `scripts/train_selector.py`       |
+| HyperMem graph extraction   | `HyperMem/hypermem/extractors/`   |
+| MemOCR visual encoding      | `MemOCR/` (esp. `memory_img*.py`) |
+| HetRep VS encoder           | `hetrep/` (all Python files)      |
+| Selector tests              | `tests/test_selector.py`          |
+| Papers & ADRs               | `docs/adr/`, `docs/papers/`       |
 
 ---
 
 ## Checkpoints During Execution
 
 ### ✅ After Phase 1
+
 **Questions**:
+
 - Can you articulate why FluxMem chose these 12 features?
 - Do you understand the math behind each feature?
 - Can you see how they differentiate linear/graph/hierarchical?
@@ -253,7 +274,9 @@ Best for: Incremental progress, multi-session work
 ---
 
 ### ✅ After Phase 2
+
 **Questions**:
+
 - Do you know the exact shape, type, and range of each encoder output?
 - Can you explain what each encoder "means" in terms of information content?
 - Do you have or can you create toy examples of VS, HG, VC outputs?
@@ -263,7 +286,9 @@ Best for: Incremental progress, multi-session work
 ---
 
 ### ✅ After Phase 3
+
 **Questions**:
+
 - Can you list M features and explain each in one sentence?
 - Do these features make intuitive sense (not arbitrary)?
 - Can you compute each feature by hand on a simple example?
@@ -274,7 +299,9 @@ Best for: Incremental progress, multi-session work
 ---
 
 ### ✅ After Phase 4
+
 **Questions**:
+
 - Do all features compute without errors?
 - Are feature ranges as expected (no NaNs, outliers)?
 - Is there redundancy (feature correlation > 0.9)?
@@ -285,7 +312,9 @@ Best for: Incremental progress, multi-session work
 ---
 
 ### ✅ After Phase 5
+
 **Questions**:
+
 - Does the code run without errors?
 - Are tests passing?
 - Is documentation complete and clear?
@@ -303,7 +332,7 @@ Best for: Incremental progress, multi-session work
 4. **Deploy**: Integrate into `fluxmem/selector.py`
 5. **Iterate**: Ablate features, add/remove based on importance
 
-These are *not* part of this feature engineering task, but keep them in mind as you design.
+These are _not_ part of this feature engineering task, but keep them in mind as you design.
 
 ---
 
@@ -341,80 +370,13 @@ A: Path B (parallel) spawns up to 2 agents at a time. More than that gets chaoti
 
 ---
 
-## File Sizes & Token Estimates
+## Status: Complete ✅
 
-| File | Size | Read Time | Content |
-|------|------|-----------|---------|
-| `QUICK_START_GUIDE.md` | ~4 KB | 5 min | Overview, checkpoints, Q&A |
-| `INDEX.md` (this file) | ~8 KB | 10 min | Map, paths, execution strategies |
-| `selector_feature_engineering_prompt.md` | ~15 KB | 20 min | Detailed 5-phase task spec |
-| `agents_skills_recommendation.md` | ~20 KB | 25 min | Agent lineup, effort estimates, pitfalls |
+**Workflow completed** (2026-08-15). 15-feature selector MLP fully designed, validated, and implemented.
 
-**Total**: ~47 KB, ~60 minutes to read completely
-(But you can start with QUICK_START_GUIDE and fold in others as needed)
+- ✅ Phase 1–2: Baseline analysis + encoder characterization
+- ✅ Phase 3: Feature engineering (15 features designed)
+- ✅ Phase 4: Validation on real data (96 tests passing)
+- ✅ Phase 5: Implementation in `fluxmem/features_v2.py`
 
----
-
-## How to Use These Files
-
-### **Scenario 1: "I want to start today"**
-1. Read `QUICK_START_GUIDE.md` (5 min)
-2. Run `/prompt-engineer` on the main prompt (10 min)
-3. Pick Path C (Hybrid): start with academic-researcher + Explore today (90 min)
-4. Schedule data-scientist for tomorrow
-
-### **Scenario 2: "I want to do this carefully"**
-1. Read `QUICK_START_GUIDE.md` (5 min)
-2. Read `agents_skills_recommendation.md` → your execution path (15 min)
-3. Review the main prompt (`selector_feature_engineering_prompt.md`) completely (20 min)
-4. Answer the "Questions to Ask Before Starting" in agents_skills_recommendation.md
-5. Run `/prompt-engineer` (10 min)
-6. Start with Path A (Sequential): follow the phase-by-phase sequence
-
-### **Scenario 3: "I need this done fast"**
-1. Skim `QUICK_START_GUIDE.md` (3 min)
-2. Jump to `agents_skills_recommendation.md` → Path B (Parallel) (5 min)
-3. Run `/prompt-engineer` with aggressive token limits (10 min)
-4. Spawn batches in parallel, track with checkpoints
-
----
-
-## Support & Debugging
-
-### If You Get Stuck
-
-**Problem**: Encoder outputs are not clear
-- **Solution**: Ask `Explore` agent to find examples in tests or `ml-engineer` to explain
-
-**Problem**: Features seem arbitrary or disconnected
-- **Solution**: Go back to Phase 2 output (encoder specs) and ensure each feature addresses a real property
-
-**Problem**: Phase 3 is taking too long
-- **Solution**: Start with 5–7 simple features, validate them, then add more
-
-**Problem**: Validation fails (features don't compute or are out of range)
-- **Solution**: Use `error-detective` agent to identify edge cases
-
-**Problem**: Too many features (>20)
-- **Solution**: Rank by variance or mutual information, cut to top 12–16
-
----
-
-## Ready?
-
-1. ✅ Review `QUICK_START_GUIDE.md`
-2. ✅ Pick an execution path (Sequential, Parallel, or Hybrid)
-3. ✅ Run `/prompt-engineer` on the main prompt
-4. ✅ Spawn your first agent
-5. ✅ Track progress with checkpoints
-6. ✅ Use `/checkpoint` at the end to archive findings
-
-**You're ready to go!**
-
----
-
-## Last Updated
-Created: 2026-08-14
-Prompt version: 1.0
-Agent lineup: 10 agents + 5 skills
-
+**See FEATURE_ENGINEERING_REPORT.md for full results.**

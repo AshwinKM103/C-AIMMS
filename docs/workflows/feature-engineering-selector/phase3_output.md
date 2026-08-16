@@ -108,18 +108,41 @@ See [Part 0.2](#02-task_accuracy-cannot-be-a-selector-input-feature--it-is-the-l
 for why this group excludes literal `accuracy/footprint` ratios. It also excludes fixed-size
 formats' footprints as separate features — see [4.3](#43-why-group-2-has-2-features-not-3-a-fixed-vs-variable-size-argument).
 
-| #   | Feature                 | Formula                                                                     | Range                                           | Encoder | Why it matters                                                                                                                                                                                                                                                                                                                                   |
-| --- | ----------------------- | --------------------------------------------------------------------------- | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 4   | `hg_cost_position`      | `(hg_footprint_kb − vs_footprint_kb) / (vc_footprint_kb − vs_footprint_kb)` | ≈[−0.01, 0.05] observed; unbounded in principle | HG      | Where HG's per-episode footprint sits between VS's fixed 1.5 KB (cheap) and VC's fixed 98 KB (expensive) bookends. Directly reward-relevant: this _is_ the memory-budget side of `accuracy/memory_budget`, expressed per-episode.                                                                                                                |
-| 5   | `hg_information_per_kb` | `hg_relational_richness / hg_footprint_kb`                                  | [0.01, 0.21] observed                           | HG      | Confidence-weighted relational density normalized by HG's own footprint — an information-per-byte proxy that does _not_ require ground-truth accuracy. The one ratio in this set whose numerator and denominator are not both driven by the same underlying scalar (verified — see [4.2](#42-hg_information_per_kb-is-not-a-trivial-rescaling)). |
+**Memory budget = tokens used to store the encoding, not disk space.** An earlier draft of this
+section measured footprint in disk KB (bytes on the wire / on disk for the serialized array).
+That was the wrong unit: the actual constraint a selector trades off against is the model's
+context/token budget, not a storage-bytes budget -- a selector choosing between VS/HG/VC pays in
+prompt tokens, and disk-KB and token-count do not even preserve the _ordering_ between formats
+(see below). Corrected 2026-08-15; full rationale in
+[DESIGN_RATIONALE.md](DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space).
 
-`hg_footprint_kb(adj) = (N_nodes·150 + N_edges·80) / 1024` — **documented assumption**:
-150 bytes/node and 80 bytes/edge are placeholder JSON-serialization-size estimates (typed
-node: id, content/summary, confidence, temporal/spatial tags, keywords; typed edge: type,
-role, endpoints), not measured against a real HyperMem-produced payload. Replace with measured
-constants once the real HG encoder lands. `vs_footprint_kb = 384·4/1024 = 1.5` KB and
-`vc_footprint_kb = 7·7·512·4/1024 = 98` KB are architecture-fixed (dtype × shape), not
-assumptions.
+| #   | Feature                    | Formula                                                                                     | Range                                         | Encoder | Why it matters                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4   | `hg_cost_position`         | `(hg_footprint_tokens - vs_footprint_tokens) / (vc_footprint_tokens - vs_footprint_tokens)` | [0.02, 2.27] observed; unbounded in principle | HG      | Where HG's per-episode footprint sits between VS's fixed 384-token (cheap) and VC's fixed 1176-token (expensive) bookends. Directly reward-relevant: this _is_ the memory-budget side of `accuracy/memory_budget`, expressed per-episode. Note the observed range now straddles and exceeds 1.0 -- under token accounting HG can be _more_ expensive than VC for larger graphs, the reverse of the old KB-based ordering (see below). |
+| 5   | `hg_information_per_token` | `hg_relational_richness / hg_footprint_tokens`                                              | [3.5e-05, 5.8e-04] observed                   | HG      | Confidence-weighted relational density normalized by HG's own footprint -- an information-per-token proxy that does _not_ require ground-truth accuracy. The one ratio in this set whose numerator and denominator are not both driven by the same underlying scalar (verified -- see [4.2](#42-hg_information_per_token-is-not-a-trivial-rescaling)).                                                                                |
+
+`hg_footprint_tokens(adj) = N_nodes*50 + N_edges*30` -- **documented assumption**: 50 tokens/node
+and 30 tokens/edge are placeholder text-token estimates for a typed node/edge rendered into the
+model's context (node: id, content/summary, confidence, temporal/spatial tags, keywords; edge:
+type, role, endpoints) -- the low end of the 50-100 tokens/node guidance range and the midpoint
+of the 20-50 tokens/edge range, not measured against a real HyperMem-produced payload. Replace
+with measured constants once the real HG encoder lands.
+
+`vs_footprint_tokens = 384*1 = 384` tokens is architecture-fixed (1 token per embedding
+dimension) and `vc_footprint_tokens = 7*7*24 = 1176` tokens is likewise architecture-fixed --
+49 spatial cells (the fixed 7x7 VC grid) at 24 tokens/cell. The 24-tokens/cell constant is
+itself derived, not arbitrary: the token-budget guidance's absolute range ("784-1600 tokens
+typical") is anchored to a finer 28x28=784-patch grid at 1-2 tokens/patch; our fixed 7x7 grid is
+coarser, so each of our cells covers a 4x4 block of that finer grid (28/7 = 4 per side, 16 fine
+patches/cell) -> 16-32 tokens/cell, and 24 is the midpoint. Channel depth (512) is deliberately
+excluded from the token count -- a token here represents one rendered/tokenized patch position,
+not one raw float, so a deeper feature map at the same spatial grid costs the same tokens to
+store, unlike the old KB accounting where every one of the 512 channels' raw float32 values
+counted toward the footprint. This is the largest single driver of the ordering flip described
+above: under KB, VC's raw (7,7,512) float32 tensor (98 KB) dwarfed HG's small JSON-ish payload
+(~1-6 KB); under tokens, VC's _rendered_ representation (1176 tokens) is modest next to what a
+node/edge-heavy HG graph costs to spell out as text (up to 2180 tokens on this sample, see
+below).
 
 ### Group 3 — Complementarity & Overlap (4 features)
 
@@ -178,29 +201,29 @@ whatever `sample_data_generator.py` produced, per [Part 0.1](#01-the-sample-data
 ### Fixed architecture constants
 
 ```
-vs_footprint_kb = 1.5000 KB  (384 × 4 bytes, constant across all episodes)
-vc_footprint_kb = 98.0000 KB (7×7×512 × 4 bytes, constant across all episodes)
+vs_footprint_tokens = 384.0 tokens  (384 dims × 1 token/dim, constant across all episodes)
+vc_footprint_tokens = 1176.0 tokens (7×7 grid × 24 tokens/cell, constant across all episodes)
 ```
 
 ### Summary statistics (final 15 features)
 
-| Feature                      | min     | max    | mean   | std                 |
-| ---------------------------- | ------- | ------ | ------ | ------------------- |
-| `vs_energy_concentration`    | 0.2388  | 0.3509 | 0.3031 | 0.0327              |
-| `hg_hierarchy_depth`         | 0.3333  | 0.3333 | 0.3333 | ~0 (exact constant) |
-| `vc_layout_concentration`    | 0.0001  | 0.0003 | 0.0002 | 5.5e-05             |
-| `hg_cost_position`           | −0.0039 | 0.0465 | 0.0201 | 0.0175              |
-| `hg_information_per_kb`      | 0.0126  | 0.2065 | 0.0664 | 0.0725              |
-| `vs_hg_structural_agreement` | 0.3118  | 0.4016 | 0.3604 | 0.0314              |
-| `vs_vc_structural_agreement` | 0.2392  | 0.3512 | 0.3033 | 0.0326              |
-| `hg_vc_structural_agreement` | 0.8935  | 0.9731 | 0.9429 | 0.0225              |
-| `vs_embedding_stability`     | 0.9026  | 0.9074 | 0.9043 | 0.0013              |
-| `hg_graph_stability`         | 0.9975  | 0.9998 | 0.9991 | 0.0008              |
-| `vc_layout_stability`        | 1.0000  | 1.0000 | 1.0000 | ~0                  |
-| `vs_semantic_specificity`    | 0.6555  | 0.7936 | 0.7045 | 0.0428              |
-| `hg_relational_richness`     | 0.0743  | 0.2481 | 0.1348 | 0.0583              |
-| `vc_layout_prominence`       | 0.0314  | 0.0568 | 0.0426 | 0.0090              |
-| `complementarity_score`      | 0.4325  | 0.5072 | 0.4645 | 0.0218              |
+| Feature                      | min     | max     | mean    | std                 |
+| ---------------------------- | ------- | ------- | ------- | ------------------- |
+| `vs_energy_concentration`    | 0.2388  | 0.3509  | 0.3031  | 0.0327              |
+| `hg_hierarchy_depth`         | 0.3333  | 0.3333  | 0.3333  | ~0 (exact constant) |
+| `vc_layout_concentration`    | 0.0001  | 0.0003  | 0.0002  | 5.5e-05             |
+| `hg_cost_position`           | 0.0202  | 2.2677  | 1.0884  | 0.7396              |
+| `hg_information_per_token`   | 3.5e-05 | 5.8e-04 | 1.8e-04 | 1.9e-04             |
+| `vs_hg_structural_agreement` | 0.3118  | 0.4016  | 0.3604  | 0.0314              |
+| `vs_vc_structural_agreement` | 0.2392  | 0.3512  | 0.3033  | 0.0326              |
+| `hg_vc_structural_agreement` | 0.8935  | 0.9731  | 0.9429  | 0.0225              |
+| `vs_embedding_stability`     | 0.9026  | 0.9074  | 0.9043  | 0.0013              |
+| `hg_graph_stability`         | 0.9975  | 0.9998  | 0.9991  | 0.0008              |
+| `vc_layout_stability`        | 1.0000  | 1.0000  | 1.0000  | ~0                  |
+| `vs_semantic_specificity`    | 0.6555  | 0.7936  | 0.7045  | 0.0428              |
+| `hg_relational_richness`     | 0.0743  | 0.2481  | 0.1348  | 0.0583              |
+| `vc_layout_prominence`       | 0.0314  | 0.0568  | 0.0426  | 0.0090              |
+| `complementarity_score`      | 0.4325  | 0.5072  | 0.4645  | 0.0218              |
 
 ### Zero/near-zero-variance features (std < 1e-6)
 
@@ -229,18 +252,21 @@ resolve once real rendered layouts (which are supposed to be _concentrated_, i.e
 entropy ceiling) exist; I flag it as a monitoring item for the Phase 3+ validation gate rather
 than fix it further against synthetic noise.
 
-### 4.2 `hg_information_per_kb` is not a trivial rescaling
+### 4.2 `hg_information_per_token` is not a trivial rescaling
 
 Sanity check (bottom of `phase3_features.py`): a naive `vs_memory_efficiency =
-vs_energy_concentration / vs_footprint_kb` correlates `r = 1.000000` with
-`vs_energy_concentration` alone — exactly, because `vs_footprint_kb` is architecture-constant,
-so dividing by it is a pure rescaling that adds zero information for a per-episode classifier.
-This is the concrete demonstration behind the [Group 2 sizing decision](#43-why-group-2-has-2-features-not-3-a-fixed-vs-variable-size-argument).
-`hg_information_per_kb`, by contrast, divides by `hg_footprint_kb`, which _does_ vary
+vs_energy_concentration / vs_footprint_tokens` correlates `r = 1.000000` with
+`vs_energy_concentration` alone — exactly, because `vs_footprint_tokens` is
+architecture-constant, so dividing by it is a pure rescaling that adds zero information for a
+per-episode classifier. This is the concrete demonstration behind the [Group 2 sizing decision](#43-why-group-2-has-2-features-not-3-a-fixed-vs-variable-size-argument).
+`hg_information_per_token`, by contrast, divides by `hg_footprint_tokens`, which _does_ vary
 per-episode (it's driven by node/edge count, not richness) — so the ratio is not a pure
 rescaling of either operand. It is, however, correlated with both `hg_relational_richness`
-(r=0.967) and `hg_cost_position` (r=−0.847) on this sample — discussed as a probable structural
-(not purely small-N) effect in [Part 4.5](#45-high-correlation-pairs-and-which-ones-i-trust).
+(r=0.966) and `hg_cost_position` (r=−0.845) on this sample (recomputed under the token-based
+footprint; near-identical to the KB-based run's r=0.967/r=−0.847, since these correlations are
+driven by the same underlying node/edge-count structure regardless of the per-unit constant) —
+discussed as a probable structural (not purely small-N) effect in
+[Part 4.5](#45-high-correlation-pairs-and-which-ones-i-trust).
 
 ### 4.3 Why Group 2 has 2 features, not 3: a fixed-vs-variable-size argument
 
@@ -251,8 +277,10 @@ footprints are the _same number on every episode_. Any "memory efficiency" featu
 with episode content (node/edge count), so it's the only encoder where a footprint-normalized
 feature carries information beyond its own numerator. I considered padding this group to 3
 features for template-symmetry with the other four groups, and rejected it: a third feature
-here would necessarily be another transform of `hg_footprint_kb` (I tried `hg_cost_share`,
-`hg_memory_footprint_log_kb` — both r > 0.98 with `hg_cost_position`, see
+here would necessarily be another transform of `hg_footprint_tokens` (I tried `hg_cost_share`,
+`hg_memory_footprint_log_tokens` — both r > 0.97 with `hg_cost_position` under the token-based
+footprint (0.982 and 0.970 respectively — down slightly from the KB-based run's r>0.98, but
+still well above the 0.9 collinearity threshold used throughout this document), see
 [Rejected/Merged](#rejected--merged-features-shown-not-hidden)). Reporting 2 honestly-distinct
 features is better than reporting 3 that are secretly the same scalar.
 
@@ -277,12 +305,12 @@ small-N coincidence rather than asserting either without support):
 
 | Pair                                                   | r      | Classification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hg_information_per_kb` ↔ `hg_relational_richness`     | 0.967  | **Structural, likely persists.** Both derive from the same weighted adjacency; on this generator, edge count scales roughly linearly with node count (`e ≈ 1.9n`), so richness (∝ 1/n-ish) and footprint (∝ n) move in tandem, and dividing one by the other doesn't fully decouple them. Real HyperMem output may or may not preserve this linear node/edge scaling — worth re-checking once real data lands, not assumed to hold.                                                                                                                                                                                                                                              |
-| `hg_information_per_kb` ↔ `hg_graph_stability`         | −0.978 | **Structural, mechanistically explained.** Larger graphs (more nodes/edges) average out per-edge perturbation noise more (a sample-size/CLT-shaped effect: `Δrichness ≈ σ√E / (N(N−1))` shrinks as N grows), so stability rises with graph size while richness falls with it (density dilutes as graphs grow) — two statistics both driven by the same underlying "episode size" confound, opposite directions.                                                                                                                                                                                                                                                                  |
+| `hg_information_per_token` ↔ `hg_relational_richness`  | 0.966  | **Structural, likely persists.** Both derive from the same weighted adjacency; on this generator, edge count scales roughly linearly with node count (`e ≈ 1.9n`), so richness (∝ 1/n-ish) and footprint (∝ n) move in tandem, and dividing one by the other doesn't fully decouple them. Real HyperMem output may or may not preserve this linear node/edge scaling — worth re-checking once real data lands, not assumed to hold. (Recomputed under the token-based footprint; r=0.967 under the old KB-based one — the correlation is driven by node/edge-count structure, not the per-unit constant, so it survives the unit change essentially unchanged.)                  |
+| `hg_information_per_token` ↔ `hg_graph_stability`      | −0.977 | **Structural, mechanistically explained.** Larger graphs (more nodes/edges) average out per-edge perturbation noise more (a sample-size/CLT-shaped effect: `Δrichness ≈ σ√E / (N(N−1))` shrinks as N grows), so stability rises with graph size while richness falls with it (density dilutes as graphs grow) — two statistics both driven by the same underlying "episode size" confound, opposite directions.                                                                                                                                                                                                                                                                  |
 | `vs_vc_structural_agreement` ↔ `complementarity_score` | −1.000 | **Placeholder artifact, not structural.** `vc_spread` has std 5.2e-5 versus `vs_spread`'s std 0.033 (≈600× smaller) — i.e., the VC sample data sits at a near-constant, near-maximum entropy value (consistent with it being unstructured Gaussian-then-ReLU-then-smoothed noise, not a real rendered layout). Any feature combining `vc_spread` with a real-varying operand collapses onto that operand. This is expected to break (decorrelate) once VC produces genuine per-episode layout variance — flagged as a re-validation gate, not a reason to drop the feature now, since the _formula_ is sound and the current degeneracy is a data problem, not a design problem. |
 
 I dropped the first category's redundant siblings (`hg_edge_density`, `hg_cost_share`,
-`hg_memory_footprint_log_kb` — see below) because they measure the _same_ thing as a kept
+`hg_memory_footprint_log_tokens` — see below) because they measure the _same_ thing as a kept
 feature through the _same_ mechanism. I kept `vs_vc_structural_agreement` and
 `complementarity_score` despite r=−1.000 because their redundancy is diagnosed as a stub-data
 artifact, not a mechanism that will necessarily persist — dropping a correctly-designed feature
@@ -293,13 +321,13 @@ mandate (design for intended future behavior).
 
 ## Rejected / Merged Features (shown, not hidden)
 
-| Feature                                               | Formula                                                 | Why rejected                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hg_edge_density`                                     | `count(nonzero)/(N(N−1))`                               | r=0.989 with `hg_relational_richness` (= density × mean_edge_weight; mean edge weight has low variance relative to density on this sample, verified directly: density range 0.114–0.300 vs. mean-weight range 0.63–0.87 — so richness inherits most of its variance from density). Also the metric whose count-based insensitivity broke `hg_graph_stability` (4.1). Superseded by `hg_relational_richness` (Group 5) and `hg_hierarchy_depth` (Group 1). |
-| `format_footprint_spread`                             | `std([vs_kb, hg_kb, vc_kb]) / mean(...)`, clipped [0,1] | Saturates at exactly 1.0 for all 10 episodes — `vc_footprint_kb` (98 KB) dominates the mean/std by 1–2 orders of magnitude over `vs_footprint_kb` (1.5 KB) and `hg_footprint_kb` (~1–6 KB), so the coefficient of variation exceeds 1.0 before clipping on every episode. Zero-variance in practice; superseded by `hg_cost_position`, which bounds the comparison against the two fixed endpoints instead of a dominated mean.                           |
-| `hg_cost_share`                                       | `hg_kb / (vs_kb+hg_kb+vc_kb)`                           | r=0.9999 with `hg_cost_position` — both are monotonic reparameterizations of the same single scalar (`hg_footprint_kb`) against the same two constants. Kept `hg_cost_position` for its more directly interpretable bookend semantics (0=as cheap as VS, 1=as expensive as VC).                                                                                                                                                                           |
-| `hg_memory_footprint_log_kb`                          | `log1p(hg_footprint_kb)`                                | r≥0.985 with both of the above. Its raw (unbounded, log-scale) information is retained inside `hg_cost_position`'s formula as an intermediate value; not worth exposing separately as an MLP input.                                                                                                                                                                                                                                                       |
-| naive `vs_memory_efficiency` / `vc_memory_efficiency` | `signal / footprint_kb`                                 | Exact rescalings of `signal` (r=1.000000, footprint is architecture-constant for VS/VC) — see [4.2](#42-hg_information_per_kb-is-not-a-trivial-rescaling)/[4.3](#43-why-group-2-has-2-features-not-3-a-fixed-vs-variable-size-argument). This is also the leaking-template version rejected in [Part 0.2](#02-task_accuracy-cannot-be-a-selector-input-feature--it-is-the-label-not-a-feature).                                                           |
+| Feature                                               | Formula                                                             | Why rejected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hg_edge_density`                                     | `count(nonzero)/(N(N−1))`                                           | r=0.989 with `hg_relational_richness` (= density × mean_edge_weight; mean edge weight has low variance relative to density on this sample, verified directly: density range 0.114–0.300 vs. mean-weight range 0.63–0.87 — so richness inherits most of its variance from density). Also the metric whose count-based insensitivity broke `hg_graph_stability` (4.1). Superseded by `hg_relational_richness` (Group 5) and `hg_hierarchy_depth` (Group 1).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `format_footprint_spread`                             | `std([vs_tokens, hg_tokens, vc_tokens]) / mean(...)`, clipped [0,1] | Under the KB-based footprint this saturated at exactly 1.0 for all 10 episodes (`vc_footprint_kb`=98 KB dominated the mean/std by 1-2 orders of magnitude). That saturation claim no longer holds verbatim under tokens: recomputed with `vs_footprint_tokens`/`hg_footprint_tokens`/`vc_footprint_tokens`, this now ranges [0.40, 0.59] (std 0.075, no longer zero-variance) and correlates only r=0.25 with `hg_cost_position` — the two are no longer near-redundant. It remains excluded from the final 15 regardless: `hg_cost_position`'s bookend-position semantics (0=as cheap as VS, 1=as expensive as VC) are more directly interpretable than a three-way coefficient of variation, and reopening Group 2's feature count is a separate design decision from this units correction, out of scope here (would need its own ADR if pursued) — flagged rather than silently left on the old, now-false "saturates at 1.0" claim. |
+| `hg_cost_share`                                       | `hg_tokens / (vs_tokens+hg_tokens+vc_tokens)`                       | r=0.982 with `hg_cost_position` under the token-based footprint (was r=0.9999 under KB) — both are monotonic reparameterizations of the same single scalar (`hg_footprint_tokens`) against the same two constants; still comfortably above the 0.9 collinearity threshold. Kept `hg_cost_position` for its more directly interpretable bookend semantics (0=as cheap as VS, 1=as expensive as VC).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `hg_memory_footprint_log_tokens`                      | `log1p(hg_footprint_tokens)`                                        | r=0.970 with `hg_cost_position` (was r≥0.985 under KB). Its raw (unbounded, log-scale) information is retained inside `hg_cost_position`'s formula as an intermediate value; not worth exposing separately as an MLP input.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| naive `vs_memory_efficiency` / `vc_memory_efficiency` | `signal / footprint_tokens`                                         | Exact rescalings of `signal` (r=1.000000, footprint is architecture-constant for VS/VC) — see [4.2](#42-hg_information_per_token-is-not-a-trivial-rescaling)/[4.3](#43-why-group-2-has-2-features-not-3-a-fixed-vs-variable-size-argument). This is also the leaking-template version rejected in [Part 0.2](#02-task_accuracy-cannot-be-a-selector-input-feature--it-is-the-label-not-a-feature).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ---
 
@@ -318,7 +346,7 @@ relationship is at the placeholder boundary: C-AIMMS's current 7-feature selecto
 replacement for exactly those two placeholders:
 
 - `hyperedge_density` (1 scalar) → `hg_hierarchy_depth`, `hg_cost_position`,
-  `hg_information_per_kb`, `hg_relational_richness`, `hg_graph_stability`,
+  `hg_information_per_token`, `hg_relational_richness`, `hg_graph_stability`,
   `vs_hg_structural_agreement`, `hg_vc_structural_agreement` (7 features)
 - `visual_salience` (1 scalar) → `vc_layout_concentration`, `vc_layout_prominence`,
   `vc_layout_stability`, `vs_vc_structural_agreement`, `hg_vc_structural_agreement`,
@@ -337,8 +365,8 @@ add VS-side and cross-modal signal the current 7-feature selector has no analog 
 | `vs_energy_concentration`    | Yes                               | No — sample VS is `np.random.randn`, not real embeddings ([0.1](#01-the-sample-data-is-synthetic-for-all-three-encoders-not-just-hgvc)) |
 | `hg_hierarchy_depth`         | Yes (trivially — it's a constant) | No — no typed-layer field exists yet, by design                                                                                         |
 | `vc_layout_concentration`    | Yes                               | No — sample VC is smoothed noise, not a rendered layout                                                                                 |
-| `hg_cost_position`           | Yes                               | Partial — footprint arithmetic is real, but the per-node/edge byte constants are documented assumptions, not measured                   |
-| `hg_information_per_kb`      | Yes                               | Partial — same caveat                                                                                                                   |
+| `hg_cost_position`           | Yes                               | Partial — footprint arithmetic is real, but the per-node/edge token constants are documented assumptions, not measured                  |
+| `hg_information_per_token`   | Yes                               | Partial — same caveat                                                                                                                   |
 | `vs_hg_structural_agreement` | Yes                               | No — structural-agreement proxy on random data ([4.4](#44-what-structural-agreement-does-and-does-not-measure))                         |
 | `vs_vc_structural_agreement` | Yes                               | No — see [4.5](#45-high-correlation-pairs-and-which-ones-i-trust) collinearity finding                                                  |
 | `hg_vc_structural_agreement` | Yes                               | No                                                                                                                                      |
@@ -381,9 +409,10 @@ expected, not a bug).
    `vc: np.ndarray(7,7,512)`) plus a `corpus_vs_mean` for `vs_semantic_specificity` — mirrors
    `phase3_features.py`'s functions directly, which are the reference implementation.
 3. **Normalization**: 12 of 15 features are formula-bounded to [0,1] or a documented-small
-   observed range already; `hg_cost_position` and `hg_information_per_kb` are unbounded above
+   observed range already; `hg_cost_position` and `hg_information_per_token` are unbounded above
    in principle (footprint/richness could exceed the observed sample range once real HG data
-   arrives). Recommend feeding the full 15 through the existing `StandardScaler` (fit on train
+   arrives -- and already does exceed it in the token-based run above, where `hg_cost_position`
+   ranges up to 2.27 on this synthetic sample rather than staying near [0, 1]). Recommend feeding the full 15 through the existing `StandardScaler` (fit on train
    only — `fluxmem/selector.py`'s pattern already does this correctly) rather than hand-rolling
    a second normalization scheme; the bounded features don't need it but z-scoring them again is
    harmless, and the two unbounded ones need it.

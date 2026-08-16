@@ -149,7 +149,7 @@ def extract_efficiency_features(hg_adjacency: np.ndarray) -> dict[str, float]:
     """Extract Group 2 features."""
     return {
         "hg_cost_position": hg_cost_position(hg_adjacency),
-        "hg_information_per_kb": hg_information_per_kb(hg_adjacency),
+        "hg_information_per_token": hg_information_per_token(hg_adjacency),  # memory budget = tokens, not disk space; see DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space
     }
 ```
 
@@ -345,7 +345,9 @@ def extract_features_v2(...) -> FeatureVector:
     for name in bounded_features:
         features[name] = np.clip(features[name], 0.0, 1.0)
 
-    # Leave hg_cost_position and hg_information_per_kb unbounded (or clamp to observed ranges)
+    # Leave hg_cost_position and hg_information_per_token unbounded (observed range for
+    # hg_cost_position now legitimately exceeds 1.0 under token accounting; do not clamp
+    # to the old disk-KB-era range)
 
     # ---- FINAL VALIDATION ----
     feature_array = np.array([features[name] for name in FEATURE_NAMES], dtype=np.float32)
@@ -378,16 +380,16 @@ def hg_cost_position(adj: np.ndarray) -> float:
 ```python
 def hg_cost_position(adj: np.ndarray) -> float:
     """..."""
-    hg_kb = (n_nodes * HG_BYTES_PER_NODE + n_edges * HG_BYTES_PER_EDGE) / 1024.0
-    vs_kb = 1.5
-    vc_kb = 98.0
+    hg_tokens = n_nodes * HG_TOKENS_PER_NODE + n_edges * HG_TOKENS_PER_EDGE
+    vs_tokens = 384.0
+    vc_tokens = 1176.0
 
-    denominator = vc_kb - vs_kb  # Could theoretically be zero or negative
+    denominator = vc_tokens - vs_tokens  # Could theoretically be zero or negative
     if denominator <= EPS:
         # Guard: if bookends are too close, return neutral value
         return 0.0
 
-    return float((hg_kb - vs_kb) / denominator)
+    return float((hg_tokens - vs_tokens) / denominator)
 ```
 
 ### Fix 6: Regression Test (15 min, automated in Unit Testing)
@@ -474,20 +476,20 @@ class TestEfficiencyFeatures:
         # Exact value depends on byte constants
         assert feat["hg_cost_position"] > 0
 
-    def test_hg_information_per_kb_zero_footprint(self):
+    def test_hg_information_per_token_zero_footprint(self):
         """Edge case: single node, no edges."""
         adj = np.array([[0.0]])
         feat = extract_efficiency_features(adj)
-        # Zero footprint -> return 0.0 (guard)
-        assert feat["hg_information_per_kb"] == 0.0
+        # Zero richness (n_nodes < 2 guard) -> return 0.0
+        assert feat["hg_information_per_token"] == 0.0
 
-    def test_hg_information_per_kb_dense_small_graph(self):
-        """Sanity: small dense graph has high information per kb."""
+    def test_hg_information_per_token_dense_small_graph(self):
+        """Sanity: small dense graph has high information per token."""
         adj = np.ones((3, 3)) * 0.8
         np.fill_diagonal(adj, 0)
         feat = extract_efficiency_features(adj)
         # Richness high, footprint small -> ratio should be moderate-to-high
-        assert feat["hg_information_per_kb"] > 0
+        assert feat["hg_information_per_token"] > 0
 
 # ---- Group 3 Tests (8 cases) ----
 class TestComplementarityFeatures:
@@ -766,9 +768,9 @@ Ensure you have clear notes for when HG/VC encoders arrive:
 # Re-Validation Checkpoints (Phase 3+)
 
 1. **When HyperMem lands**:
-   - Re-compute correlations: `hg_information_per_kb` vs. `hg_relational_richness`
+   - Re-compute correlations: `hg_information_per_token` vs. `hg_relational_richness`
    - If r > 0.95, drop redundant one (reduces to 14 features)
-   - Measure real JSON serialization cost; update byte constants
+   - Measure real rendered-into-context token cost; update token constants (not byte constants -- memory budget is tokens, see DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space)
 
 2. **When MemOCR lands**:
    - Re-validate `vc_layout_*` features on real renders

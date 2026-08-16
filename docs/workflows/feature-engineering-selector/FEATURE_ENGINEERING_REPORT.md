@@ -91,14 +91,14 @@ Each phase surfaced assumptions and tested them:
 
 ### VS: Vector Semantic (Implemented)
 
-| Property          | Value                                                                                                       |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Output Type**   | 384-d dense vector (numpy.ndarray, float32)                                                                 |
-| **Model**         | all-MiniLM-L6-v2 (sentence-transformers)                                                                    |
-| **Memory**        | 384 × 4 bytes = 1.5 KB per episode                                                                          |
-| **Normalization** | L2-normalized to unit norm                                                                                  |
-| **Semantics**     | Dense semantic content; good for similarity search via FAISS, poor for explicit entity/relation information |
-| **Status**        | ✅ Fully implemented                                                                                        |
+| Property          | Value                                                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Output Type**   | 384-d dense vector (numpy.ndarray, float32)                                                                                                                                  |
+| **Model**         | all-MiniLM-L6-v2 (sentence-transformers)                                                                                                                                     |
+| **Memory**        | 384 × 1 token/dim = 384 tokens per episode (memory budget = tokens used to store the encoding, not disk space; see DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space) |
+| **Normalization** | L2-normalized to unit norm                                                                                                                                                   |
+| **Semantics**     | Dense semantic content; good for similarity search via FAISS, poor for explicit entity/relation information                                                                  |
+| **Status**        | ✅ Fully implemented                                                                                                                                                         |
 
 **Implementation**: `hetrep/vs/encoder.py` → concatenates turn text, encodes with SentenceTransformer, outputs `unit.embedding`.
 
@@ -108,7 +108,7 @@ Each phase surfaced assumptions and tested them:
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | **Intended Output Type** | 3-layer hypergraph (JSON-serializable Pydantic model)                                                            |
 | **Structure**            | Layer 1: Facts (with confidence); Layer 2: Episodes (with roles); Layer 3: Topics                                |
-| **Intended Memory**      | Variable, ~1–6 KB (documented estimates: 150 bytes/node + 80 bytes/edge)                                         |
+| **Intended Memory**      | Variable, ~500–3400 tokens (documented estimates: 50 tokens/node + 30 tokens/edge)                               |
 | **Semantics**            | Typed entities and higher-order relations; good for entity-centric/multi-hop reasoning; poor for dense retrieval |
 | **Status**               | ❌ Currently a no-op stub (returns all zeros)                                                                    |
 
@@ -120,7 +120,7 @@ Each phase surfaced assumptions and tested them:
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | **Correct Output Type** | 2D rendered image (layout-aware visual memory)                                                                                 |
 | **Rendering**           | Layout-stratified information density (crucial evidence in high-visibility regions, auxiliary details in low-priority regions) |
-| **Intended Memory**     | Variable, ~50–200 KB (downsampled rendering, visual token budget)                                                              |
+| **Intended Memory**     | Fixed 1176 tokens (7×7 coarse patches × 24 tokens/patch; see DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space)         |
 | **Semantics**           | Visual/spatial representation; good for layout-aware reasoning and vision-capable agents; poor for explicit entity information |
 | **Status**              | ❌ Currently a no-op stub (returns 0.0); ADR 0003's scalar approach is wrong per MemOCR paper                                  |
 
@@ -148,10 +148,10 @@ Measure memory cost and information density (proxy for reasoning capability).
 
 | #   | Feature                 | Formula                                                       | Range                  | Encoder | Why It Matters                                                                                                                                                                       |
 | --- | ----------------------- | ------------------------------------------------------------- | ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 4   | `hg_cost_position`      | (HG footprint − VS footprint) / (VC footprint − VS footprint) | [−0.01, 0.05] observed | HG      | Positions HG's per-episode memory between VS's fixed 1.5 KB (cheap) and VC's fixed 98 KB (expensive). Directly reward-relevant (the denominator side of `accuracy / memory_budget`). |
-| 5   | `hg_information_per_kb` | Relational richness / HG footprint                            | [0.01, 0.21] observed  | HG      | Information-per-byte proxy (confidence-weighted relational density normalized by HG's own footprint). Does NOT require ground-truth accuracy.                                        |
+| 4   | `hg_cost_position`        | (HG footprint − VS footprint) / (VC footprint − VS footprint) | [0.02, 2.27] observed  | HG      | Positions HG's per-episode memory between VS's fixed 384 tokens (cheap) and VC's fixed 1176 tokens (expensive). Directly reward-relevant (the denominator side of `accuracy / memory_budget`, where memory_budget is tokens, not disk bytes). |
+| 5   | `hg_information_per_token` | Relational richness / HG footprint                            | [3.5e-05, 5.8e-04] observed | HG | Information-per-token proxy (confidence-weighted relational density normalized by HG's own token footprint). Does NOT require ground-truth accuracy.                                |
 
-**Note on footprint constants**: VS (1.5 KB) and VC (98 KB) are architecture-fixed (shape × dtype). HG estimates (150 bytes/node, 80 bytes/edge) are placeholders based on intended JSON serialization; replace with measured values once real HyperMem output exists.
+**Note on footprint constants**: memory budget = tokens used to store the encoding, not disk space (see DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space). VS (384 tokens) and VC (1176 tokens) are architecture-fixed (dim × tokens-per-dim; grid × tokens-per-patch). HG estimates (50 tokens/node, 30 tokens/edge) are placeholders based on estimated rendered-token cost of a typed node/edge; replace with measured values once real HyperMem output exists. Note that under token accounting, unlike the old disk-KB accounting, HG can exceed VC's cost for large graphs -- `hg_cost_position` now legitimately ranges above 1.0.
 
 ### Group 3: Complementarity & Overlap (4 features)
 
@@ -203,8 +203,8 @@ Computed with `phase3_features.py` on 10 synthetic episodes (vs_embeddings, hg_a
 | `vs_energy_concentration`    | 0.2388  | 0.3509 | 0.3031 | 0.0327        |
 | `hg_hierarchy_depth`         | 0.3333  | 0.3333 | 0.3333 | ~0 (constant) |
 | `vc_layout_concentration`    | 0.0001  | 0.0003 | 0.0002 | 5.5e-05       |
-| `hg_cost_position`           | −0.0039 | 0.0465 | 0.0201 | 0.0175        |
-| `hg_information_per_kb`      | 0.0126  | 0.2065 | 0.0664 | 0.0725        |
+| `hg_cost_position`           | 0.0202  | 2.2677 | 1.0884 | 0.7396        |
+| `hg_information_per_token`   | 3.5e-05 | 5.8e-04 | 1.8e-04 | 1.9e-04      |
 | `vs_hg_structural_agreement` | 0.3118  | 0.4016 | 0.3604 | 0.0314        |
 | `vs_vc_structural_agreement` | 0.2392  | 0.3512 | 0.3033 | 0.0326        |
 | `hg_vc_structural_agreement` | 0.8935  | 0.9731 | 0.9429 | 0.0225        |
@@ -246,8 +246,8 @@ At N=10 (small sample; confidence intervals are wide), three pairs show |r| > 0.
 
 | Pair                                                   | r      | Classification                        | Action                                                         |
 | ------------------------------------------------------ | ------ | ------------------------------------- | -------------------------------------------------------------- |
-| `hg_information_per_kb` ↔ `hg_relational_richness`     | 0.967  | Structural, likely persists           | Re-check on real HG data; if confirmed, drop redundant one     |
-| `hg_information_per_kb` ↔ `hg_graph_stability`         | −0.978 | Structural, mechanistically explained | Graph size confound (larger graphs more stable, lower density) |
+| `hg_information_per_token` ↔ `hg_relational_richness`  | 0.966  | Structural, likely persists (near-identical to prior KB-based r=0.967) | Re-check on real HG data; if confirmed, drop redundant one     |
+| `hg_information_per_token` ↔ `hg_graph_stability`      | −0.977 | Structural, mechanistically explained | Graph size confound (larger graphs more stable, lower density) |
 | `vs_vc_structural_agreement` ↔ `complementarity_score` | −1.000 | Artifact of stub data                 | Will decorrelate once VC produces real layout variance         |
 
 **Decision**: Keep all 15. High correlations on this N=10 sample don't discard correctly-designed features; they flag re-validation gates for Phase 3+ when real encoder data arrives.
@@ -299,8 +299,8 @@ In vs_embedding_stability:
 ```
 Before returning FeatureVector:
   - Clamp 12 bounded features to [0, 1]: all except
-    hg_cost_position, hg_information_per_kb (unbounded above)
-  - Clamp hg_cost_position to observed range [-0.01, 0.05] or leave unbounded
+    hg_cost_position, hg_information_per_token (unbounded above)
+  - Leave hg_cost_position unbounded (observed range [0.02, 2.27] on synthetic sample now legitimately exceeds 1.0 under token accounting; do not clamp to a KB-era range)
   - Assert no NaN in output vector
 ```
 
@@ -315,7 +315,7 @@ In any HG feature extraction:
 **5. Epsilon Guards** (15 min)
 
 ```
-In hg_cost_position:
+In hg_cost_position:  # denominator is (vc_footprint_tokens − vs_footprint_tokens)
   - Add 1e-12 to denominator (vc_footprint − vs_footprint)
 In all normalized entropy calculations:
   - Clip p to (0, 1] before log to avoid log(0)
@@ -366,7 +366,7 @@ Create `edge_case_test.py` with:
 
 2. **Once HyperMem lands** (Phase 3+ real HG encoder)
    - [ ] Re-compute correlation matrix on real HG output
-   - [ ] Verify `hg_information_per_kb` ↔ `hg_relational_richness` correlation
+   - [ ] Verify `hg_information_per_token` ↔ `hg_relational_richness` correlation
    - [ ] If r > 0.95, drop redundant one for production (reduces to 14 features)
    - [ ] Measure real JSON serialization size; replace 150/80 byte constants
 
@@ -384,7 +384,7 @@ Create `edge_case_test.py` with:
 
 | Gate                         | Trigger                                | Action                                                                                       |
 | ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **HG Correlation Gate**      | Real HyperMem data arrives             | Re-validate `hg_information_per_kb` / `hg_relational_richness` correlation; drop if r > 0.95 |
+| **HG Correlation Gate**      | Real HyperMem data arrives             | Re-validate `hg_information_per_token` / `hg_relational_richness` correlation; drop if r > 0.95 |
 | **VC Layout Gate**           | Real MemOCR renderer available         | Re-validate `vc_layout_*` features; check if `vs_vc_structural_agreement` decorrelates       |
 | **Footprint Constants Gate** | Real HG/VC payloads in production      | Measure actual JSON size and rendering overhead; update placeholders                         |
 | **Robustness Gate**          | Can re-run encoders on perturbed input | Upgrade Group 4 from output-space to true input-perturbation sensitivity                     |

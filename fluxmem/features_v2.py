@@ -42,7 +42,7 @@ discipline: a prompt's illustrative code is not itself the spec):
   do not match the actual, already-decided Phase 3 feature set in
   `phase3_output.md`. This module implements the real, settled 15 --
   `vs_energy_concentration`, `hg_hierarchy_depth`, `vc_layout_concentration`,
-  `hg_cost_position`, `hg_information_per_kb`, `vs_hg_structural_agreement`,
+  `hg_cost_position`, `hg_information_per_token`, `vs_hg_structural_agreement`,
   `vs_vc_structural_agreement`, `hg_vc_structural_agreement`,
   `complementarity_score`, `vs_embedding_stability`, `hg_graph_stability`,
   `vc_layout_stability`, `vs_semantic_specificity`, `hg_relational_richness`,
@@ -110,7 +110,7 @@ FEATURE_NAMES_V2 = (
     "hg_hierarchy_depth",
     "vc_layout_concentration",
     "hg_cost_position",
-    "hg_information_per_kb",
+    "hg_information_per_token",
     "vs_hg_structural_agreement",
     "vs_vc_structural_agreement",
     "hg_vc_structural_agreement",
@@ -125,7 +125,7 @@ FEATURE_NAMES_V2 = (
 FEATURE_DIM_V2 = len(FEATURE_NAMES_V2)  # 15 -- never hardcode the 15
 
 # The 12 features phase3_output.md's Range column formula-bounds to [0, 1]
-# (hg_cost_position, hg_information_per_kb are unbounded above in principle;
+# (hg_cost_position, hg_information_per_token are unbounded above in principle;
 # vc_layout_prominence is bounded to [-1, 1], not [0, 1] -- none of the three
 # are clamped here). Phase 4b critical fix #2.
 BOUNDED_FEATURES_V2 = frozenset(
@@ -155,14 +155,38 @@ EPS = 1e-12
 # appears in a denominator.
 _ZERO_NORM_EPS = 1e-10
 
-VS_ITEMSIZE_BYTES = 4  # float32
-VC_ITEMSIZE_BYTES = 4  # float32
 DEFAULT_VC_SHAPE = (7, 7, 512)  # architecture-fixed VC canvas grid x channels
 
-# Documented placeholder JSON-serialization-size estimates (phase3_output.md
-# Group 2), pending measurement against a real HyperMem payload.
-HG_BYTES_PER_NODE = 150.0
-HG_BYTES_PER_EDGE = 80.0
+# Memory budget is measured in tokens used to store the encoding (what a
+# selector actually pays for out of the model's context budget), not disk
+# bytes/KB -- corrected 2026-08-15, see docs/workflows/feature-engineering-
+# selector/DESIGN_RATIONALE.md "Memory budget = tokens, not disk space" for
+# the full rationale and phase3_output.md Group 2 for the re-derived numbers.
+#
+# VS: 1 token per embedding dimension (the encoder emits one scalar per dim;
+# a downstream tokenizer/serializer spends roughly one token representing
+# it).
+VS_TOKENS_PER_DIM = 1.0
+
+# HG: documented placeholder estimates (phase3_output.md Group 2) for a typed
+# node/edge rendered as text tokens fed to the model -- id, content/summary,
+# confidence, temporal/spatial tags, keywords (node); type, role, endpoints
+# (edge) -- pending measurement against a real HyperMem-produced payload.
+# Picked the low end of the 50-100 tokens/node guidance range and the
+# midpoint of the 20-50 tokens/edge range.
+HG_TOKENS_PER_NODE = 50.0
+HG_TOKENS_PER_EDGE = 30.0
+
+# VC: tokens per rendered spatial patch. The architecture-fixed VC grid is
+# (7, 7, ...) -- 49 spatial cells -- which is coarser than the 28x28=784
+# fine-patch grid the token-budget guidance is anchored to; each of our
+# cells covers a 4x4 block of that finer grid (28/7 = 4 per side, 16 fine
+# patches/cell), so at 1-2 tokens/fine-patch a coarse cell costs 16-32
+# tokens. 24 is the midpoint. Channel depth is deliberately not counted per
+# token -- a token here represents one rendered/tokenized patch position,
+# not one raw float, so a deeper feature map at the same spatial grid does
+# not cost more tokens to store.
+VC_TOKENS_PER_PATCH = 24.0
 
 _DEFAULT_RNG_SEED = 42  # phase3_features.py's seed, kept for reproducibility
 _STABILITY_TRIALS_VS = 20
@@ -332,19 +356,25 @@ def _vc_spread(feat: np.ndarray) -> float:
     return float(np.clip(h / np.log(len(s)), 0.0, 1.0))
 
 
-def _vs_footprint_kb(vs_dim: int) -> float:
-    return vs_dim * VS_ITEMSIZE_BYTES / 1024.0
+def _vs_footprint_tokens(vs_dim: int) -> float:
+    return vs_dim * VS_TOKENS_PER_DIM
 
 
-def _vc_footprint_kb(vc_shape: tuple[int, int, int]) -> float:
-    h, w, c = vc_shape
-    return h * w * c * VC_ITEMSIZE_BYTES / 1024.0
+def _vc_footprint_tokens(vc_shape: tuple[int, int, int]) -> float:
+    """Tokens to store the VC encoding: `H * W * VC_TOKENS_PER_PATCH`.
+
+    Channel depth `C` is intentionally excluded from the token count -- see
+    `VC_TOKENS_PER_PATCH`'s docstring above for why a token represents a
+    rendered patch position, not a raw float.
+    """
+    h, w, _c = vc_shape
+    return h * w * VC_TOKENS_PER_PATCH
 
 
-def _hg_footprint_kb(adj: np.ndarray) -> float:
+def _hg_footprint_tokens(adj: np.ndarray) -> float:
     n = adj.shape[0]
     e = int(np.count_nonzero(adj))
-    return (n * HG_BYTES_PER_NODE + e * HG_BYTES_PER_EDGE) / 1024.0
+    return n * HG_TOKENS_PER_NODE + e * HG_TOKENS_PER_EDGE
 
 
 def _hg_relational_richness(adj: np.ndarray) -> float:
@@ -384,16 +414,21 @@ def extract_efficiency_features(
     selector's training *label* (fluxmem/supervision.py), not an input
     feature; including one would be target leakage (phase3_output.md Part
     0.2). Epsilon-guarded denominator (Phase 4b important fix #5), even
-    though `vc_kb - vs_kb` is a fixed architecture constant (~96.5) that
-    never reaches zero in practice.
+    though `vc_tokens - vs_tokens` is a fixed architecture constant (~792,
+    with the current `VC_TOKENS_PER_PATCH`/`VS_TOKENS_PER_DIM` constants)
+    that never reaches zero in practice.
+
+    Memory budget here is tokens used to store the encoding, not disk
+    bytes/KB -- see `VS_TOKENS_PER_DIM`/`HG_TOKENS_PER_NODE`/
+    `HG_TOKENS_PER_EDGE`/`VC_TOKENS_PER_PATCH` above.
     """
-    vs_kb = _vs_footprint_kb(vs_dim)
-    vc_kb = _vc_footprint_kb(vc_shape)
-    hg_kb = _hg_footprint_kb(hg_adjacency)
+    vs_tokens = _vs_footprint_tokens(vs_dim)
+    vc_tokens = _vc_footprint_tokens(vc_shape)
+    hg_tokens = _hg_footprint_tokens(hg_adjacency)
     richness = _hg_relational_richness(hg_adjacency)
     return {
-        "hg_cost_position": float((hg_kb - vs_kb) / (vc_kb - vs_kb + EPS)),
-        "hg_information_per_kb": float(richness / (hg_kb + EPS)),
+        "hg_cost_position": float((hg_tokens - vs_tokens) / (vc_tokens - vs_tokens + EPS)),
+        "hg_information_per_token": float(richness / (hg_tokens + EPS)),
     }
 
 

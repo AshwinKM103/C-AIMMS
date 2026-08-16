@@ -91,7 +91,7 @@ class TestFeatureDim:
 
     def test_three_features_are_deliberately_unbounded(self) -> None:
         unbounded = set(FEATURE_NAMES_V2) - BOUNDED_FEATURES_V2
-        assert unbounded == {"hg_cost_position", "hg_information_per_kb", "vc_layout_prominence"}
+        assert unbounded == {"hg_cost_position", "hg_information_per_token", "vc_layout_prominence"}
 
 
 # ---------------------------------------------------------------------------
@@ -376,8 +376,8 @@ class TestOutputClamping:
     def test_unbounded_features_can_exceed_unit_interval(self) -> None:
         """hg_cost_position should be free to go negative/above 1 -- verifies the
         clamp step does NOT over-clip features the spec leaves unbounded."""
-        # A large synthetic graph pushes hg_footprint_kb well past vc_footprint_kb,
-        # driving hg_cost_position above 1.0.
+        # A large synthetic graph pushes hg_footprint_tokens well past
+        # vc_footprint_tokens, driving hg_cost_position above 1.0.
         n = 2000
         adj = np.ones((n, n)) - np.eye(n)
         unit = _unit(embedding=_vec(), hg_adjacency=adj)
@@ -522,7 +522,7 @@ class TestGroupFunctionsIndependently:
 
     def test_extract_efficiency_features_keys(self) -> None:
         result = extract_efficiency_features(_adjacency(), VS_DIM, (7, 7, 512))
-        assert set(result) == {"hg_cost_position", "hg_information_per_kb"}
+        assert set(result) == {"hg_cost_position", "hg_information_per_token"}
 
     def test_extract_overlap_features_keys(self) -> None:
         result = extract_overlap_features(0.3, 0.5, 0.7)

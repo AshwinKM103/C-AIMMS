@@ -143,26 +143,33 @@ def vc_layout_concentration(feat: np.ndarray) -> float:
 
 ## Group 2: Efficiency & Memory Trade-off
 
+**Memory budget = tokens used to store the encoding, not disk space.** Corrected 2026-08-15: an
+earlier version of this reference measured footprint in disk KB (raw serialized-array bytes).
+The actual constraint a selector trades off against is the model's context/token budget, not a
+storage-bytes budget. See [DESIGN_RATIONALE.md](DESIGN_RATIONALE.md#memory-budget--tokens-not-disk-space)
+for the full rationale, including why disk-KB and token-count do not even preserve the ordering
+between formats.
+
 ### Feature 4: hg_cost_position
 
-**Definition**: Position of HG's per-episode footprint on a scale between VS (cheap) and VC (expensive).
+**Definition**: Position of HG's per-episode footprint on a scale between VS (cheap) and VC (expensive), measured in tokens.
 
 **Formula**:
 
 ```
-hg_footprint_kb = (n_nodes * 150 + n_edges * 80) / 1024
-vs_footprint_kb = 384 * 4 / 1024 = 1.5
-vc_footprint_kb = 7 * 7 * 512 * 4 / 1024 = 98.0
-feature = (hg_footprint_kb - vs_footprint_kb) / (vc_footprint_kb - vs_footprint_kb)
+hg_footprint_tokens = n_nodes * 50 + n_edges * 30
+vs_footprint_tokens = 384 * 1 = 384
+vc_footprint_tokens = 7 * 7 * 24 = 1176
+feature = (hg_footprint_tokens - vs_footprint_tokens) / (vc_footprint_tokens - vs_footprint_tokens)
 ```
 
-**Expected Range**: Observed [−0.0039, 0.0465]; unbounded above in principle (if HG grows very large).
+**Expected Range**: Observed [0.02, 2.27]; unbounded above in principle (if HG grows very large). Note this range straddles and exceeds 1.0 on the sample data -- under token accounting, a node/edge-heavy HG graph can be _more_ expensive than VC's fixed 1176-token rendered footprint, the reverse of the old KB-based result (where VC's raw float32 tensor always dominated).
 
-**Testability**: ⚠️ Partial. Formula runs; VS and VC footprints are architecture-fixed (real). HG footprint uses placeholder constants (150 bytes/node, 80 bytes/edge from estimated JSON serialization). Measure real values once HyperMem lands.
+**Testability**: ⚠️ Partial. Formula runs; VS and VC footprints are architecture-fixed (real, given the token-per-dim/token-per-patch constants). HG footprint uses placeholder constants (50 tokens/node, 30 tokens/edge -- text-token estimates for a typed node/edge rendered into the model's context). Measure real values once HyperMem lands.
 
 **Why It Matters**:
 
-- Directly measures the denominator of the reward function (`task_accuracy / memory_budget`).
+- Directly measures the denominator of the reward function (`task_accuracy / memory_budget`), where memory_budget is tokens spent, not disk bytes.
 - 0 = HG is as cheap as VS (best efficiency).
 - 1 = HG is as expensive as VC (worst efficiency).
 - Selector uses this to balance accuracy gains against memory cost.
@@ -170,52 +177,51 @@ feature = (hg_footprint_kb - vs_footprint_kb) / (vc_footprint_kb - vs_footprint_
 **Edge Cases**:
 
 - HG footprint equals VS footprint: feature = 0.0.
-- HG footprint very large (large graph): feature → ∞ (unbounded above).
-- Zero-node graph (n_nodes = 0): footprint ≈ 0, feature → negative (cheap).
+- HG footprint very large (large graph): feature → ∞ (unbounded above), and does so more readily under token accounting than it did under KB accounting -- see the observed range above.
+- Zero-node graph (n_nodes = 0): footprint = 0, feature = (0 - 384) / 792 < 0 (cheaper than VS).
 
-**Implementation** (reference: phase3_features.py, lines 139-149):
+**Implementation** (reference: `fluxmem/features_v2.py`, `_hg_footprint_tokens`/`_vs_footprint_tokens`/`_vc_footprint_tokens`/`extract_efficiency_features`):
 
 ```python
-def hg_cost_position(adj: np.ndarray) -> float:
+def hg_cost_position(adj: np.ndarray, vs_dim: int, vc_shape: tuple[int, int, int]) -> float:
     """adj: shape (N, N), weighted adjacency matrix"""
     n_nodes = adj.shape[0]
     n_edges = np.count_nonzero(adj)
-    hg_kb = (n_nodes * HG_BYTES_PER_NODE + n_edges * HG_BYTES_PER_EDGE) / 1024.0
-    vs_kb = 1.5
-    vc_kb = 98.0
-    if vc_kb - vs_kb <= EPS:
-        return 0.0  # Guard: denominator too small
-    return float((hg_kb - vs_kb) / (vc_kb - vs_kb))
+    hg_tokens = n_nodes * HG_TOKENS_PER_NODE + n_edges * HG_TOKENS_PER_EDGE
+    vs_tokens = vs_dim * VS_TOKENS_PER_DIM
+    h, w, _c = vc_shape
+    vc_tokens = h * w * VC_TOKENS_PER_PATCH
+    return float((hg_tokens - vs_tokens) / (vc_tokens - vs_tokens + EPS))
 ```
 
-**Update Path**: Replace `HG_BYTES_PER_NODE = 150` and `HG_BYTES_PER_EDGE = 80` with measured constants once real HyperMem output exists.
+**Update Path**: Replace `HG_TOKENS_PER_NODE = 50` and `HG_TOKENS_PER_EDGE = 30` with measured constants once real HyperMem output exists (measure actual rendered-token cost of a typed node/edge, not an estimate).
 
 **Usage in MLP**: Group 2 efficiency signal; critical for reward-function alignment.
 
-**References**: Phase 3 Output, Group 2; ADR 0002 (reward function).
+**References**: Phase 3 Output, Group 2; ADR 0002 (reward function); DESIGN_RATIONALE.md (memory-budget-as-tokens correction).
 
 ---
 
-### Feature 5: hg_information_per_kb
+### Feature 5: hg_information_per_token
 
-**Definition**: Confidence-weighted relational density (richness) divided by HG's memory footprint. Proxy for information-per-byte efficiency.
+**Definition**: Confidence-weighted relational density (richness) divided by HG's memory footprint, in tokens. Proxy for information-per-token efficiency.
 
 **Formula**:
 
 ```
 relational_richness = Σ(edge_weights) / (N * (N-1))
-hg_footprint_kb = (n_nodes * 150 + n_edges * 80) / 1024
-feature = relational_richness / hg_footprint_kb
+hg_footprint_tokens = n_nodes * 50 + n_edges * 30
+feature = relational_richness / hg_footprint_tokens
 ```
 
-**Expected Range**: [0.01, 0.21] observed; unbounded above in principle.
+**Expected Range**: [3.5e-05, 5.8e-04] observed; unbounded above in principle. (Note the range shrank relative to the old KB-based [0.01, 0.21] -- the same numerator divided by a denominator that is now ~100-1000x larger in absolute units, since a "token" is a much smaller unit of footprint than a "KB". The magnitude is not comparable across the two unit systems; only the correlation structure is.)
 
 **Testability**: ⚠️ Partial. Formula is mechanically sound. Numerator (richness) is real on mock generator (which uses realistic ~10% edge sparsity). Denominator (footprint) is a placeholder estimate.
 
 **Why It Matters**:
 
-- Information-per-byte: high = HG packs a lot of relational information into small footprint (efficient).
-- Low = HG is footprint-heavy relative to its relational content (wasteful).
+- Information-per-token: high = HG packs a lot of relational information into a small token footprint (efficient).
+- Low = HG is token-heavy relative to its relational content (wasteful).
 - Does NOT require ground-truth accuracy (unlike naive `accuracy/footprint` which is target leakage).
 - Complements `hg_cost_position` (absolute cost) with a density signal (value per unit cost).
 
@@ -225,10 +231,10 @@ feature = relational_richness / hg_footprint_kb
 - No edges (all zeros): richness = 0, feature = 0 (no relational information).
 - Very dense graph: richness → 1, small footprint → large feature.
 
-**Implementation** (reference: phase3_features.py, lines 139-162, adapted):
+**Implementation** (reference: `fluxmem/features_v2.py`, `_hg_footprint_tokens`/`_hg_relational_richness`/`extract_efficiency_features`):
 
 ```python
-def hg_information_per_kb(adj: np.ndarray) -> float:
+def hg_information_per_token(adj: np.ndarray) -> float:
     """adj: shape (N, N), weighted adjacency matrix"""
     n_nodes = adj.shape[0]
     if n_nodes < 2:
@@ -239,18 +245,16 @@ def hg_information_per_kb(adj: np.ndarray) -> float:
 
     # Footprint
     n_edges = np.count_nonzero(adj)
-    hg_kb = (n_nodes * HG_BYTES_PER_NODE + n_edges * HG_BYTES_PER_EDGE) / 1024.0
+    hg_tokens = n_nodes * HG_TOKENS_PER_NODE + n_edges * HG_TOKENS_PER_EDGE
 
-    if hg_kb <= EPS:
-        return 0.0  # No footprint = no information
-    return float(richness / hg_kb)
+    return float(richness / (hg_tokens + EPS))
 ```
 
-**Correlation Note**: r = 0.967 with `hg_relational_richness` on current sample (mechanically explained: edge count ∝ node count on mock generator). Likely to persist on real data, but re-validate once HyperMem lands.
+**Correlation Note**: r = 0.966 with `hg_relational_richness` on current sample (mechanically explained: edge count ∝ node count on mock generator; recomputed under the token-based footprint, near-identical to the KB-based run's r=0.967, since the correlation is driven by node/edge-count structure, not the per-unit constant). Likely to persist on real data, but re-validate once HyperMem lands.
 
-**Usage in MLP**: Group 2 efficiency signal; value-per-byte proxy.
+**Usage in MLP**: Group 2 efficiency signal; value-per-token proxy.
 
-**References**: Phase 3 Output, Group 2; Phase 4 Validation, Section 4.2.
+**References**: Phase 3 Output, Group 2; Phase 4 Validation, Section 4.2; DESIGN_RATIONALE.md (memory-budget-as-tokens correction).
 
 ---
 
@@ -672,7 +676,7 @@ def hg_relational_richness(adj: np.ndarray) -> float:
     return float(np.sum(adj) / (n * (n - 1)))
 ```
 
-**Correlation Note**: r = 0.967 with `hg_information_per_kb` on sample (edge count scales linearly with node count on generator). Likely structural, but re-validate on real HG data. If confirmed, drop one of the pair in production.
+**Correlation Note**: r = 0.966 with `hg_information_per_token` on sample (edge count scales linearly with node count on generator; near-identical to the prior KB-based run's r=0.967). Likely structural, but re-validate on real HG data. If confirmed, drop one of the pair in production.
 
 **Usage in MLP**: Group 5 task-relevant signal; HG reasoning-capability proxy.
 
@@ -751,7 +755,7 @@ def vc_layout_prominence(feat: np.ndarray) -> float:
 All 15 features will pass through `StandardScaler` (fit on training data only) in fluxmem/selector.py. The scaler handles:
 
 - Bounded features [0, 1]: Z-score normalization removes bounds, but OK (MLP handles).
-- Unbounded features (hg_cost_position, hg_information_per_kb): Z-score essential.
+- Unbounded features (hg_cost_position, hg_information_per_token): Z-score essential.
 
 Do NOT double-normalize; StandardScaler is sufficient.
 

@@ -4,16 +4,16 @@
 **Location**: `docs/workflows/feature-engineering-selector/`
 **Created**: 2026-08-14
 
-## Quick Links
+## Output Documents
 
-| File                                                                                                            | Purpose                    | Read Time |
-| --------------------------------------------------------------------------------------------------------------- | -------------------------- | --------- |
-| [`README.md`](feature-engineering-selector/README.md)                                                           | Overview & navigation      | 5 min     |
-| [`QUICK_START_GUIDE.md`](feature-engineering-selector/QUICK_START_GUIDE.md)                                     | How to start + checkpoints | 20 min    |
-| [`selector_feature_engineering_prompt.md`](feature-engineering-selector/selector_feature_engineering_prompt.md) | Main prompt (5 phases)     | 20 min    |
-| [`agents_skills_recommendation.md`](feature-engineering-selector/agents_skills_recommendation.md)               | Agent lineup & strategies  | 25 min    |
-| [`AGENT_LINEUP_CARD.md`](feature-engineering-selector/AGENT_LINEUP_CARD.md)                                     | Quick agent reference      | 15 min    |
-| [`INDEX.md`](feature-engineering-selector/INDEX.md)                                                             | Complete map & paths       | 20 min    |
+| File                                                                                          | Purpose                                         | Read Time |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------- | --------- |
+| [`FEATURE_ENGINEERING_REPORT.md`](feature-engineering-selector/FEATURE_ENGINEERING_REPORT.md) | Feature analysis & design decisions             | 30 min    |
+| [`FEATURE_REFERENCE.md`](feature-engineering-selector/FEATURE_REFERENCE.md)                   | 15-feature specification & validation           | 20 min    |
+| [`DESIGN_RATIONALE.md`](feature-engineering-selector/DESIGN_RATIONALE.md)                     | Architecture & token-budget accounting          | 20 min    |
+| [`DEPLOYMENT_GUIDE.md`](feature-engineering-selector/DEPLOYMENT_GUIDE.md)                     | Integration & usage examples                    | 15 min    |
+| [`phase3_output.md`](feature-engineering-selector/phase3_output.md)                           | Complete feature definitions & validation gates | 40 min    |
+| [`INDEX.md`](feature-engineering-selector/INDEX.md)                                           | Document map & read paths                       | 10 min    |
 
 ## What This Is
 
@@ -25,35 +25,14 @@ A complete feature engineering system for designing a new selector MLP that choo
 - **Built-in checkpoints** to verify each phase
 - **Production-ready structure** for implementation
 
-## Start Here
+## How to Use These Documents
 
-### Option 1: Quick Start (5 minutes)
+Start with **FEATURE_ENGINEERING_REPORT.md** for a complete overview, then drill into specific sections:
 
-```bash
-# Read the README
-cat docs/workflows/feature-engineering-selector/README.md
-
-# Then read the quick start guide
-cat docs/workflows/feature-engineering-selector/QUICK_START_GUIDE.md
-```
-
-### Option 2: Full Deep Dive (60 minutes)
-
-Read all files in order:
-
-1. `README.md`
-2. `QUICK_START_GUIDE.md`
-3. `selector_feature_engineering_prompt.md` (main prompt for agents)
-4. `agents_skills_recommendation.md` (agent assignments)
-5. `AGENT_LINEUP_CARD.md` (quick reference)
-6. `INDEX.md` (complete map)
-
-### Option 3: Start Immediately
-
-1. Read `QUICK_START_GUIDE.md` section "How to Get Started"
-2. Run `/prompt-engineer` on `selector_feature_engineering_prompt.md`
-3. Pick an agent from `AGENT_LINEUP_CARD.md` → "Quick Selection Matrix"
-4. Spawn agent with the main prompt
+- **Understanding the feature set** → `FEATURE_REFERENCE.md` (all 15 features with formulas & ranges)
+- **Deployment & integration** → `DEPLOYMENT_GUIDE.md` (code examples, validation gates)
+- **Architecture decisions** → `DESIGN_RATIONALE.md` (token-budget accounting, why these features)
+- **Detailed specifications** → `phase3_output.md` (complete validation, bounded/unbounded features, clamping rules)
 
 ## The Task
 
@@ -119,40 +98,37 @@ Session 3: Implementation (python-engineer + technical-writer)
 
 **Time**: Spread over 3 sessions, ~300 min agent work
 
-See `AGENT_LINEUP_CARD.md` for detailed command sequences.
-
 ## Next Steps
 
-1. **Read** `README.md` (5 min orientation)
-2. **Choose** an execution strategy
-3. **Run** `/prompt-engineer` on the main prompt
-4. **Spawn** your first agent
-5. **Track** progress with built-in checkpoints
-6. **Archive** findings with `/checkpoint` at the end
+1. **Read** `FEATURE_ENGINEERING_REPORT.md` — complete overview & methodology
+2. **Reference** `FEATURE_REFERENCE.md` — feature definitions & validation gates
+3. **Implement** using `DEPLOYMENT_GUIDE.md` — code patterns & testing
 
 ## Questions?
 
 Refer to:
 
-- **"What is this task?"** → `INDEX.md` → "Overview"
-- **"Which agent to use?"** → `AGENT_LINEUP_CARD.md` → "Quick Selection Matrix"
-- **"How do I start?"** → `QUICK_START_GUIDE.md` → "How to Get Started"
-- **"What if I get stuck?"** → `QUICK_START_GUIDE.md` → "Common Q&A"
-- **"What are the phases?"** → `selector_feature_engineering_prompt.md` → "Phase 1-5"
+- **"What features are implemented?"** → `FEATURE_REFERENCE.md` → "Feature Catalog"
+- **"How do I use this in code?"** → `DEPLOYMENT_GUIDE.md` → "Integration"
+- **"Why these features?"** → `DESIGN_RATIONALE.md` → full rationale
+- **"What are the bounded/unbounded features?"** → `phase3_output.md` → "Feature Properties"
 
 ## All Files
 
 ```
 docs/workflows/feature-engineering-selector/
-├── README.md                                    [Start here: overview]
-├── QUICK_START_GUIDE.md                        [How to get going]
-├── selector_feature_engineering_prompt.md      [Main prompt for agents]
-├── agents_skills_recommendation.md             [Agent lineup & strategies]
-├── AGENT_LINEUP_CARD.md                        [Quick agent reference]
-└── INDEX.md                                    [Complete map]
+├── INDEX.md                                    [Document map & read paths]
+├── FEATURE_ENGINEERING_REPORT.md               [Complete analysis & methodology]
+├── FEATURE_REFERENCE.md                        [Feature catalog & specifications]
+├── DESIGN_RATIONALE.md                         [Architecture & design decisions]
+├── DEPLOYMENT_GUIDE.md                         [Integration & code examples]
+├── phase3_output.md                            [Detailed specs & validation gates]
+├── phase1_output.md                            [Baseline analysis]
+├── phase2_output.md                            [Encoder characterization]
+└── SEQUENTIAL_EXECUTION_PLAN.md                [Phase-by-phase execution record]
 ```
 
-**Total**: 88 KB | **Read time**: 5 min (quick) to 60 min (complete)
+**Total**: 130 KB | **Read time**: 10 min (reference) to 90 min (complete)
 
 ---
 

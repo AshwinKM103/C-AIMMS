@@ -39,6 +39,55 @@ When Phase 2 discovered that HG and VC encoders are currently stubs with zero va
 
 ---
 
+## Memory Budget = Tokens, Not Disk Space
+
+**Corrected 2026-08-15.** Every efficiency feature in Group 2 (and several rejected candidates
+below) is a ratio against a "memory footprint." Earlier drafts of this document, `FEATURE_REFERENCE.md`,
+and `fluxmem/features_v2.py` defined that footprint as **disk space in KB** -- the size of the
+raw serialized array (`float32` bytes for VS/VC, an estimated JSON-serialization byte count for
+HG). That was the wrong quantity.
+
+**Why it was wrong**: nothing in the selector's reward function, training loop, or serving path
+ever writes these encodings to disk and measures the resulting file size. The actual constraint
+the selector trades accuracy against is the **model's context/token budget**: how many tokens
+each encoder's output consumes when it is placed into the LLM's context at inference time. Disk
+bytes and token count are not proportional across encoders -- a `float32` array is dense in disk
+bytes but each dimension still costs roughly one token when rendered/serialized into context; a
+rendered image consumes tokens per visual patch, not per pixel byte; and a hypergraph's disk-JSON
+size and its rendered-into-context token count scale by different implicit constants entirely.
+Using disk KB as the proxy for "memory budget" silently measured the wrong resource.
+
+**Correction applied**:
+
+| Encoder | Old (disk KB)                                  | New (tokens)                                                        |
+| ------- | ----------------------------------------------- | --------------------------------------------------------------------- |
+| VS      | 384 × 4 bytes / 1024 = 1.5 KB (fixed)            | 384 × 1 token/dim = 384 tokens (fixed)                                |
+| VC      | 7×7×512 × 4 bytes / 1024 = 98 KB (fixed)         | 7×7 coarse patches × 24 tokens/patch = 1176 tokens (fixed)            |
+| HG      | N_nodes × 150 + N_edges × 80 bytes (~1-6 KB)     | N_nodes × 50 + N_edges × 30 tokens (~500-3400+ tokens on sample data) |
+
+The VC token constant (24 tokens/patch) is a documented derivation, not a bare guess: the task
+guidance's reference point is a 28×28 patch grid at 1-2 tokens/patch; the codebase's actual VC
+shape is the coarser 7×7 grid (`DEFAULT_VC_SHAPE`), so each 7×7 cell is treated as covering a 4×4
+block of the finer reference grid, giving 16-32 tokens/cell and a midpoint of 24. See
+`fluxmem/features_v2.py` for the constants (`VS_TOKENS_PER_DIM`, `HG_TOKENS_PER_NODE`,
+`HG_TOKENS_PER_EDGE`, `VC_TOKENS_PER_PATCH`) and their in-code rationale.
+
+**A consequence, not swept under the rug**: under disk-KB accounting, VC's raw float32 tensor
+always dominated (98 KB vs. HG's ~1-6 KB), so `hg_cost_position` never exceeded roughly 0.05. Under
+token accounting, HG's per-node/per-edge token cost can exceed VC's fixed 1176-token footprint for
+graphs with more than roughly 20 nodes -- `hg_cost_position` now legitimately ranges above 1.0 on
+the sample data (observed [0.02, 2.27]). This is not a bug introduced by the correction; it is the
+correction removing a false floor that the wrong unit had been imposing. Any code or documentation
+that assumed HG is always cheaper than VC needs to be re-checked against this.
+
+**Scope of the correction**: `fluxmem/features_v2.py`, `tests/test_features_v2.py`, and every
+Group 2-adjacent number in this document, `FEATURE_REFERENCE.md`, `FEATURE_ENGINEERING_REPORT.md`,
+`DEPLOYMENT_GUIDE.md`, and `phase3_output.md` were updated together so no file states the old
+disk-KB numbers as current. Historical KB-based values are kept only where explicitly labeled as
+"old"/"prior" for contrast.
+
+---
+
 ## Top 5 Design Decisions & Trade-offs
 
 ### Decision 1: 15 Features (Not 12, Not 20)
@@ -55,8 +104,8 @@ When Phase 2 discovered that HG and VC encoders are currently stubs with zero va
 | ---------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `hg_edge_density`            | r=0.989 with `hg_relational_richness` (density dominates variance; richness includes weight information) |
 | `format_footprint_spread`    | Saturates at 1.0 for all episodes (VC dominates by 2 orders of magnitude)                                |
-| `hg_cost_share`              | r=0.9999 with `hg_cost_position` (same underlying scalar reparameterized)                                |
-| `hg_memory_footprint_log_kb` | r≥0.985 with cost features (log transform of same footprint)                                             |
+| `hg_cost_share`              | r=0.982 with `hg_cost_position` (same underlying scalar reparameterized)                                 |
+| `hg_memory_footprint_log_tokens` | r≥0.970 with cost features (log transform of same footprint)                                          |
 
 **Trade-off**: 15 avoids redundancy (each feature adds independent information) while staying under the ≤20 budget. Smaller sets (e.g., 10) lose granularity; larger sets (e.g., 20) introduce noise without proportional signal gain.
 
@@ -136,8 +185,8 @@ Features use the **denominator** of the reward function (memory cost) and **prox
 | ------------------------------- | --------------- | ---------------------------- | ----------------------------------------- |
 | `task_accuracy`                 | Ground truth    | No (label, not feature)      | ❌ No (label side only)                   |
 | `performance_score / footprint` | Direct ratio    | No (target leakage)          | ❌ No                                     |
-| `hg_footprint_kb`               | Denominator     | Yes                          | ✅ Group 2 (cost_position)                |
-| `hg_relational_richness`        | Numerator proxy | Yes (no ground truth needed) | ✅ Group 5 + Group 2 (information_per_kb) |
+| `hg_footprint_tokens`           | Denominator     | Yes                          | ✅ Group 2 (cost_position)                |
+| `hg_relational_richness`        | Numerator proxy | Yes (no ground truth needed) | ✅ Group 5 + Group 2 (information_per_token) |
 | `vc_layout_concentration`       | Numerator proxy | Yes                          | ✅ Group 1 + Group 5                      |
 | `vs_embedding_spread`           | Numerator proxy | Yes                          | ✅ Group 1 + Group 3                      |
 
@@ -153,29 +202,29 @@ Features use the **denominator** of the reward function (memory cost) and **prox
 
 VS and VC representations are architecture-fixed size:
 
-- VS: 384 dimensions, always 1.5 KB per episode.
-- VC: 7×7×512 channels, always 98 KB per episode.
-- HG: Variable (N_nodes × 150 + N_edges × 80 bytes), ~1–6 KB.
+- VS: 384 dimensions, always 384 tokens per episode.
+- VC: 7×7×512 channels rendered as 7×7 coarse patches, always 1176 tokens per episode.
+- HG: Variable (N_nodes × 50 + N_edges × 30 tokens), ~500-3400+ tokens on sample data.
 
 **The consequence**: Any feature like `vs_efficiency = vs_signal / vs_footprint` is a **pure rescaling** of `vs_signal` alone (footprint is constant → divide by constant → same information).
 
 **Proof** (Phase 3, Section 4.2):
 
 ```
-vs_memory_efficiency = vs_energy_concentration / 1.5
+vs_memory_efficiency = vs_energy_concentration / 384
 correlation with vs_energy_concentration = 1.0000 (exact)
 ```
 
 **Decision**: Only HG gets efficiency features (Group 2):
 
-- `hg_cost_position` (where in VS/VC range?)
-- `hg_information_per_kb` (richness per byte, where richness varies)
+- `hg_cost_position` (where in VS/VC token range?)
+- `hg_information_per_token` (richness per token, where richness varies)
 
 VS/VC efficiency is captured implicitly: if their signal (geometry, robustness) is high, the MLP learns they're good despite fixed cost. If signal is low, fixed high cost (VC) makes it less attractive than low cost (VS).
 
 **Trade-off**: Fewer explicit efficiency features, but design is honest (no fake information from pure rescalings).
 
-**References**: Phase 3 Output, Section 4.3 (group sizing); Phase 4 Finding: `hg_information_per_kb` is not trivial rescaling.
+**References**: Phase 3 Output, Section 4.3 (group sizing); Phase 4 Finding: `hg_information_per_token` is not trivial rescaling.
 
 ---
 
@@ -209,19 +258,19 @@ VS/VC efficiency is captured implicitly: if their signal (geometry, robustness) 
 
 **Design Rationale**:
 
-1. **hg_cost_position**: Normalizes HG's footprint to a [−1, 1] scale between VS (cheap, ~1.5 KB) and VC (expensive, ~98 KB). Directly implements the denominator of the reward function.
+1. **hg_cost_position**: Normalizes HG's footprint onto a 0 (VS, cheap, 384 tokens) - 1 (VC, expensive, 1176 tokens) anchored scale, unbounded above (a graph can cost more tokens than VC's fixed footprint). Directly implements the denominator of the reward function, where the denominator is tokens, not disk bytes.
 
-2. **hg_information_per_kb**: Divides relational richness (confidence-weighted edge density) by footprint. Measures whether HG is packing a lot of relational information into its bytes, or if it's redundant/wasteful.
+2. **hg_information_per_token**: Divides relational richness (confidence-weighted edge density) by token footprint. Measures whether HG is packing a lot of relational information into its tokens, or if it's redundant/wasteful.
 
 **Why only 2?**: VS and VC are fixed-size. Adding `vs_efficiency` or `vc_efficiency` would be rescaling (r=1.0 with their signal features), not new information (Phase 3, Section 4.3).
 
 **Alternatives Considered**:
 
 - `hg_edge_density` (count-based): r=0.989 with `hg_relational_richness` (density dominates; weight info lost) → Rejected in favor of richness.
-- `hg_cost_share` (HG / total): r=0.9999 with `hg_cost_position` → Rejected; same scalar, different parameterization.
+- `hg_cost_share` (HG / total): r=0.982 with `hg_cost_position` → Rejected; same scalar, different parameterization.
 - `vc_rendering_budget_used`: Not testable now; fixed constant on stub.
 
-**Why information_per_kb matters**: It's the _only_ feature whose numerator and denominator are independent (both don't scale with the same underlying variable). Provides genuine efficiency insight without leaking to target.
+**Why information_per_token matters**: It's the _only_ feature whose numerator and denominator are independent (both don't scale with the same underlying variable). Provides genuine efficiency insight without leaking to target.
 
 ---
 
@@ -329,10 +378,10 @@ VS/VC efficiency is captured implicitly: if their signal (geometry, robustness) 
 | Feature                      | Formula                     | Why Dropped                                                                                                      |
 | ---------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `hg_edge_density`            | count(edges) / (N(N-1))     | r=0.989 with `hg_relational_richness`; density is main variance source; kept richness (includes weights)         |
-| `format_footprint_spread`    | std([vs_kb, hg_kb, vc_kb])  | Saturates at 1.0 (VC dominates by orders of magnitude); replaced with `hg_cost_position` (bookend normalization) |
+| `format_footprint_spread`    | std([vs_tokens, hg_tokens, vc_tokens]) | No longer saturates under token accounting (observed [0.400, 0.590], std 0.075, only r=0.25 with `hg_cost_position` -- the old "saturates at 1.0" claim was specific to disk-KB units and is now false); still excluded in favor of `hg_cost_position`'s bookend normalization, which is more directly interpretable. Reopening Group 2's feature count with this feature would need its own ADR. |
 | `hg_cost_share`              | hg_kb / (vs + hg + vc)      | r=0.9999 with `hg_cost_position`; same scalar, different parameterization; kept position (more interpretable)    |
-| `hg_memory_footprint_log_kb` | log1p(hg_footprint_kb)      | r≥0.985 with cost features; log of same underlying value; not novel information                                  |
-| naive `vs_efficiency`        | vs_energy / vs_footprint_kb | r=1.0000 (vs_footprint constant); pure rescaling; added zero information                                         |
+| `hg_memory_footprint_log_tokens` | log1p(hg_footprint_tokens) | r≥0.970 with cost features; log of same underlying value; not novel information                               |
+| naive `vs_efficiency`        | vs_energy / vs_footprint_tokens | r=1.0000 (vs_footprint constant); pure rescaling; added zero information                                    |
 
 **All rejections documented** (Phase 3 output) rather than silently discarded. This supports evidence discipline: readers can see what was considered and why it didn't make the cut.
 
@@ -370,7 +419,7 @@ VS/VC efficiency is captured implicitly: if their signal (geometry, robustness) 
 
 - `hg_hierarchy_depth` is constant (1/3) until HG is real, but it's documented as future-only. Keeping it ensures design completeness.
 - `vc_layout_stability` saturates at 1.0 on noise data, but again, this is expected (noise at entropy ceiling). Real renders will have variance.
-- Did NOT include `vs_dimensionality` (always 384), `vs_footprint_kb` (always 1.5), or other pure constants.
+- Did NOT include `vs_dimensionality` (always 384), `vs_footprint_tokens` (always 384), or other pure constants.
 
 ---
 
@@ -396,9 +445,9 @@ VS/VC efficiency is captured implicitly: if their signal (geometry, robustness) 
 
 | Gate                         | Condition                              | Action                                                                                                                                   |
 | ---------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **HG Correlation Gate**      | Real HyperMem data arrives             | Re-compute correlation matrix (Phase 3, Section 4.5); if `hg_information_per_kb` ↔ `hg_relational_richness` r > 0.95, drop redundant one |
+| **HG Correlation Gate**      | Real HyperMem data arrives             | Re-compute correlation matrix (Phase 3, Section 4.5); if `hg_information_per_token` ↔ `hg_relational_richness` r > 0.95, drop redundant one |
 | **VC Layout Gate**           | Real MemOCR renders available          | Re-validate `vc_layout_*` features; check if `vs_vc_structural_agreement` decorrelates (currently r=−1.0 due to stub)                    |
-| **Footprint Constants Gate** | HG/VC production payloads measured     | Update placeholder byte constants (150/node, 80/edge, 98 KB VC); recompute Group 2                                                       |
+| **Footprint Constants Gate** | HG/VC production payloads measured     | Update placeholder token constants (50/node, 30/edge, 1176 tokens VC); recompute Group 2                                                 |
 | **Robustness Gate**          | Can re-run encoders on perturbed input | Upgrade Group 4 from output-space to true input-perturbation sensitivity                                                                 |
 
 **None of these gates block Phase 5 deployment.** They are monitoring points for production iteration once real encoders land.
