@@ -27,7 +27,7 @@ const PATTERNS = [
 ];
 
 // Files where a placeholder is expected and a match is not a leak.
-const ALLOWLIST = [/\.env\.example$/, /(^|\/)secret-scanner\.js$/, /(^|\/)CLAUDE_TOOLKIT_ANALYSIS\.md$/];
+const ALLOWLIST = [/\.env\.example$/, /(^|\/)secret-scanner\.js$/];
 
 function pendingContent(toolName, ti) {
   if (!ti) return "";
