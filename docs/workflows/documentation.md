@@ -1,64 +1,54 @@
-# Documentation Workflows
+# Documentation Workflow
 
-When writing or updating project documentation, use these tools:
+## What to document
 
-## Available Tools
+- Public API functions: parameters, return types, error conditions, and at least one example.
+- Architecture decisions: why an approach was chosen — write an ADR (`docs/adr/`), not a comment.
+- Setup and installation: prerequisites, steps, common failure modes.
+- Configuration: every option, its default, and its environment variable.
+- Non-obvious behavior: edge cases, gotchas, workarounds.
 
-### Plugins (installed via `/plugin install` in Claude Code)
+## What not to document
 
-- **`codebase-documenter`** — Auto-document entire codebase with inline comments and API docs. Best for generating comprehensive docstrings across multiple files.
-- **`doc-forge`** — Generate documentation, API docs, and README maintenance. Good for end-to-end documentation generation.
-- **`readme-generator`** — Smart README generation from project analysis. Use for auto-generating project READMEs.
-- **`onboarding-guide`** — Create onboarding documentation for new developers. Use for developer onboarding docs.
+- Obvious code (getters, setters, thin wrappers).
+- Implementation details that change frequently — they will rot faster than they help.
+- Anything the type system already expresses.
+- Temporary workarounds that don't have a tracking issue.
 
-### Commands (available as `/doc-gen`, `/api-docs`, `/onboard`)
+## Docstring bar
 
-Located in `.claude/commands/documentation/`:
+Every module gets a one-line module docstring stating its purpose. Every public function or class
+gets a docstring with a one-line summary, an `Args` section, a `Returns` section, and a `Raises`
+section (only if it raises). Non-obvious logic gets a one-line inline comment explaining _why_, not
+_what_. `HyperMem/tests/` is the acceptance bar for this — e.g.
+`HyperMem/tests/test_checkpoint_manager.py` shows the expected shape: module docstring naming the
+key test cases up front, per-function docstring with a summary, `Args`, and `Raises`.
 
-- `/doc-gen` — Generate documentation from code
-- `/api-docs` — Generate API docs from route handlers
-- `/onboard` — Create onboarding guide for new devs
+## Formats
 
-### Rules (always active)
+- Inline comments: explain why, not what. One line, placed above the code.
+- Docstrings: required for all public APIs. Parameters, returns, exceptions raised, one usage
+  example.
+- README: installation, quick start, usage (most common case first), configuration reference,
+  contributing guidelines, license — in that order.
+- CLAUDE.md: project context, conventions, build commands, key architecture decisions. Kept under
+  ~150 lines; it loads in full every session, so depth belongs elsewhere.
+- ADRs: date, status, context, decision, consequences. Nygard format, sequential, `docs/adr/`.
+  Supersede an ADR rather than editing it.
 
-- `.claude/rules/documentation.md` — Documentation style and conventions (inline comments, JSDoc/docstrings, README structure)
+## Style
 
-## Common Workflows
+- Concrete examples, not abstract descriptions.
+- Write for the person maintaining this code in six months, not for the person who just wrote it.
+- Consistent terminology — don't introduce a synonym for a term the codebase already uses.
+- Short sentences, one idea per paragraph.
+- Code blocks carry a language tag.
+- Tables for option lists, comparisons, and configuration references.
 
-### Adding docstrings to a module
+## Keep docs current
 
-```
-1. Use python-best-practices skill for style guidance
-2. Either manually write docstrings (following .claude/rules/documentation.md)
-3. Or use codebase-documenter plugin for auto-generation
-```
-
-### Generating API documentation
-
-```
-1. Use /api-docs command for route/endpoint documentation
-2. Or use doc-forge plugin for comprehensive API doc generation
-3. Result: OpenAPI/Swagger compatible docs
-```
-
-### Creating onboarding docs
-
-```
-1. Use /onboard command for quick onboarding guide
-2. Or use onboarding-guide plugin for comprehensive setup
-3. Result: New developer setup and navigation guide
-```
-
-### Updating README
-
-```
-1. Use readme-generator plugin to analyze project and generate README
-2. Or manually update using documentation.md guidelines
-3. Result: Well-structured README with installation, usage, contribution sections
-```
-
-## Notes
-
-- All plugins must be installed via `/plugin install claude-code-toolkit@<name>` in Claude Code
-- Documentation rules in `.claude/rules/documentation.md` are always active
-- When in doubt, follow the evidence discipline in `.claude/rules/evidence-discipline.md` — show what you verified about the code before documenting
+- Update documentation in the same PR that changes the code it describes — a docs update that
+  lands later is a docs update that doesn't land.
+- Stale docs are worse than no docs; review them as part of code review, not as an afterthought.
+- Keep CLAUDE.md current with the project's actual layout and conventions, not its aspirational
+  ones.
